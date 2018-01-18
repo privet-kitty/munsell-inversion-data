@@ -1,5 +1,5 @@
 # Munsell inversion data
-This repository provides fundamental datas for conversion from some color spaces (e.g. RGB) to Munsell color system. Every conversion is based on a color library [dufy](https://github.com/privet-kitty/dufy).
+This repository provides fundamental datas for the conversion from some color spaces (e.g. RGB) to Munsell color system. Every data is based on a color library [dufy](https://github.com/privet-kitty/dufy).
 
 ## RGB-to-Munsell binary data
 - sRGB: [mid-srgb-d65.dat](https://github.com/privet-kitty/munsell-inversion-data/raw/master/mid-srgb-d65.dat)
@@ -15,24 +15,24 @@ Each of these files is 256 * 256 * 256 * 32 bit (&#8786; 64MB) binary data, whic
 
 #### F: flag of large interpolation error: 
 
-This flag means that the transformation error is large:
+This flag means that the transformation error is slightly large, which is estimated as follows:
 
-![Interpolation Error in the case of sRGB(D65)](https://g.gravizo.com/source/error_diagram?https%3A%2F%2Fraw.githubusercontent.com%2Fprivet-kitty%2Fmunsell-inversion-data%2Fmaster%2FREADME.MD)
+![Transformation Error e.g. in the case of sRGB(D65)](https://g.gravizo.com/source/error_diagram?https%3A%2F%2Fraw.githubusercontent.com%2Fprivet-kitty%2Fmunsell-inversion-data%2Fmaster%2FREADME.MD)
 <details> 
 <summary></summary>
 error_diagram
 digraph G {
    graph [
       labelloc = "t",
-      label = "Transformation Error in the case of sRGB(D65)",
+      label = "Transformation Error e.g. in the case of sRGB(D65)",
       fontsize = 16
    ];
    node [shape = "box", fontname = "helvetica"]
    munsell [ label = "Munsell Color" ]
-   lchab [ label = "LCH(ab)\n Illuminant C" ]
-   xyzc [label = "XYZ\nIlluminant C" ]
-   xyzd65a [label = "XYZ\nIlluminant D65" ]
-   xyzd65b [label = "XYZ\nIlluminant D65" ]
+   lchab [ label = "LCH(ab)\n illuminant C" ]
+   xyzc [label = "XYZ\nilluminant C" ]
+   xyzd65a [label = "XYZ\nilluminant D65" ]
+   xyzd65b [label = "XYZ\nilluminant D65" ]
    hex [label = "Hex"]
 
    {rank=same; munsell; hex;}
@@ -41,7 +41,7 @@ digraph G {
    munsell -> lchab  [label = "dufy:munsell-hvc-to-lchab"]
    hex -> xyzd65b
    lchab -> xyzc
-   xyzc -> xyzd65a [label = "bradford" ]
+   xyzc -> xyzd65a [label = "Bradford" ]
   
   
 
@@ -54,7 +54,7 @@ digraph G {
 error_diagram
 </details>
 
-The error is evaluated by &Delta;E<sub>ab</sub>:  If &Delta;E<sub>ab</sub>  &ge; 1.0, the flag is 1.
+The error is evaluated by &Delta;E<sup>&lowast;</sup><sub>ab</sub>:  If &Delta;E<sup>&lowast;</sup><sub>ab</sub>  &ge; 1.0, the flag is 1.
 
 
 #### H: quantized hue in {0, 1, ..., 999}
@@ -75,9 +75,9 @@ Munsell chroma in [0, 50] is quantized to C by 0.1.
 
 
 ### Information about accuracy
-The transformation error is evaluated as described above. The result is as follows:
+The transformation error is evaluated as described above. The statistics is as follows:
 
-| RGB space | Num. of Nodes with &Delta; E<sub>ab</sub> &ge; 1 |Mean &Delta; E<sub>ab</sub> | Max. &Delta; E<sub>ab</sub> |Mean &Delta; E<sub>00</sub> | Max. &Delta; E<sub>00</sub> |
+| RGB space | Num. of Nodes s.t. &Delta; E<sup>&lowast;</sup><sub>ab</sub> &ge; 1 |Mean &Delta; E<sup>&lowast;</sup><sub>ab</sub> | Max. &Delta; E<sup>&lowast;</sup><sub>ab</sub> |Mean &Delta; E<sup>&lowast;</sup><sub>00</sub> | Max. &Delta; E<sup>&lowast;</sup><sub>00</sub> |
 | --- | ---: | ---: | ---: | ---:| ---: |
 | sRGB (D65) | 957 (0.006%)| 0.1993 | 3.009 | 0.09052 | 2.359 |
 | sRGB (D50) | 1252 (0.007%) | 0.2007 | 3.035 | 0.09400 | 2.253 |

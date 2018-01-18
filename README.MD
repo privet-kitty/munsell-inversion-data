@@ -4,6 +4,7 @@ This repository provides fundamental datas for conversion from some color spaces
 ## RGB-to-Munsell binary data
 ## Structure
 Each of these files is 256 * 256 * 256 * 32 bit (&#8786; 64MB) binary data, which is a table of  conversion from hex (#000000 to #FFFFFF) to Munsell color.  Each cell gives a corresponding Munsell color in hue-value-chroma format in big-endian byte-order:
+
 | 1-bit | 1-bit | 10-bit | 10-bit | 10-bit |
 | :---: | :---: | :---: | :---: | :---: |
 | 0 | 0 | 0000000000 | 0000000000 | 0000000000 |
@@ -11,8 +12,7 @@ Each of these files is 256 * 256 * 256 * 32 bit (&#8786; 64MB) binary data, whic
 
 ### F: flag of large interpolation error: 
 
-![Tree of Direct Converters](https://g.gravizo.com/source/converter_tree?https%3A%2F%2Fraw.githubusercontent.com%2Fprivet-kitty%2Fmunsell-inversion-data%2Fmaster%2FREADME.md)
-
+![Interpolation Error in the case of sRGB(D65)](https://g.gravizo.com/source/error_diagram?https%3A%2F%2Fraw.githubusercontent.com%2Fprivet-kitty%2Fmunsell-inversion-data%2Fmaster%2FREADME.MD)
 <details> 
 <summary></summary>
 error_diagram
@@ -55,6 +55,7 @@ The error is evaluated by &Delta;E<sub>ab</sub>:  If &Delta;E<sub>ab</sub>  &ge;
 ### H: quantized hue in {0, 1, ..., 999}
 
 H corresponds to Munsell hue string as follows:
+
 | H | Hue String |
 | -------------------- | --------------------- | 
 | 0 - 100 | 10RP (=0R) - 10R (=0YR) |
@@ -70,11 +71,11 @@ Munsell chroma in [0, 50] is quantized to C by 0.1.
 
 ## Information about accuracy
 The interpolation error is evaluated as described above. The result is as follows:
+
 | RGB space | Number of Nodes with &Delta; E<sub>ab</sub> &ge; 1 |Mean &Delta; E<sub>ab</sub> | Max. &Delta; E<sub>ab</sub> |Mean &Delta; E<sub>00</sub> | Max. &Delta; E<sub>00</sub> |
 | --- | ---: | ---: | ---: | ---:| ---: |
 | sRGB (D65) | 957 (0.006%)| 0.1993 | 3.009 | 0.09052 | 2.359 |
 | sRGB (D50) | 1252 (0.007%) | 0.2007 | 3.035 | 0.09400 | 2.253 |
-
 
 
 Note: as is clear from the above diagram, the error here means the color difference not to *true* colors but to the return values of `dufy:munsell-hvc-to-lchab`. For more information, go to https://github.com/privet-kitty/dufy.

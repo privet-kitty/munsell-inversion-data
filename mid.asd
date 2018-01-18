@@ -4,6 +4,7 @@
 
 (defsystem :mid
   :description "Tools for Munsell inversion data"
+  :version "0.1.0"
   :author "privet-kitty"
   :license "MIT"
   :serial t

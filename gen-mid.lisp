@@ -1,5 +1,9 @@
 ;;
 ;; This is a script file to generate Munsell inversion datas.
+;; Instructions:
+;; 1. Uncomment the (do-task...) lines below.
+;; 2. Just do
+;; $ sbcl --load "gen-mid.lisp" --eval "(quit)"
 ;;
 
 (in-package :cl-user)
@@ -27,5 +31,11 @@
 ;;   (do-task (car task) (cdr task))
 ;;   ))
 
+;; (defparameter mid (mid:load-munsell-inversion-data (merge-pathnames "mid-srgb-d65.dat" current-path)))
 
-;; (defparameter mid (mid:load-munsell-inversion-data (merge-pathnames "srgb-d65.dat" current-path)))
+
+
+;; (do-task "mid-srgb-d65" dufy:srgb)
+;; (do-task "mid-srgb-d50" dufy:srgbd50)
+;; (do-task "mid-adobergb-d65" dufy:adobe)
+;; (do-task "mid-adobergb-d50" dufy:adobed50)))

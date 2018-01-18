@@ -1,12 +1,12 @@
 # Munsell inversion data
-This repository provides fundamental datas for the conversion from some color spaces (e.g. RGB) to Munsell color system. Every data is based on a color library [dufy](https://github.com/privet-kitty/dufy).
+This repository provides fundamental datas for conversion from some color spaces (e.g. RGB) to Munsell color system. All datas are based on a color library [dufy](https://github.com/privet-kitty/dufy).
 
 ## RGB-to-Munsell binary data
-- sRGB: [mid-srgb-d65.dat](https://github.com/privet-kitty/munsell-inversion-data/raw/master/mid-srgb-d65.dat)
-- sRGB (D50): [mid-srgb-d50.dat](https://github.com/privet-kitty/munsell-inversion-data/raw/master/mid-srgb-d50.dat)
+- sRGB: [mid-srgb-d65.dat](https://github.com/privet-kitty/munsell-inversion-data/raw/master/dat/mid-srgb-d65.dat)
+- sRGB (D50): [mid-srgb-d50.dat](https://github.com/privet-kitty/munsell-inversion-data/raw/master/dat/mid-srgb-d50.dat)
 
 ### Structure
-Each of these files is 256 * 256 * 256 * 32 bit (&#8786; 64MB) binary data, which is a table of  conversion from hex (#000000 to #FFFFFF) to Munsell color.  Each cell gives a corresponding Munsell color in hue-value-chroma format in big-endian byte-order:
+Each of these files is 256 * 256 * 256 * 32 bit (&#8786; 64MB) binary data, which is a table of  conversion from hex (#000000 to #FFFFFF) to Munsell color.  Each 32-bit data gives a corresponding Munsell color in hue-value-chroma format in *big-endian* byte-order:
 
 | 1-bit | 1-bit | 10-bit | 10-bit | 10-bit |
 | :---: | :---: | :---: | :---: | :---: |
@@ -63,10 +63,10 @@ H corresponds to Munsell hue string as follows:
 
 | H | Hue String |
 | -------------------- | --------------------- | 
-| 0 - 100 | 10RP (=0R) - 10R (=0YR) |
-| 100 - 200 | 10R (=0YR) - 10YR (=0Y) |
+| 0 to 100 | 10RP (=0R) to 10R (=0YR) |
+| 100 to 200 | 10R (=0YR) to 10YR (=0Y) |
 | ... | ... |
-| 900 - 999 | 10P (=0RP) - 9.9RP |
+| 900 to 999 | 10P (=0RP) to 9.9RP |
 
 #### V: quantized value in {0, 1, ..., 1000}
 Munsell value in [0, 10] is quantized to V by 0.01.
@@ -75,13 +75,13 @@ Munsell chroma in [0, 50] is quantized to C by 0.1.
 
 
 ### Information about accuracy
-The transformation error is evaluated as described above. The statistics is as follows:
+The transformation error is evaluated as described above. The general statistics is as follows:
 
-| RGB space | Num. of Nodes s.t. &Delta; E<sup>&lowast;</sup><sub>ab</sub> &ge; 1 |Mean &Delta; E<sup>&lowast;</sup><sub>ab</sub> | Max. &Delta; E<sup>&lowast;</sup><sub>ab</sub> |Mean &Delta; E<sup>&lowast;</sup><sub>00</sub> | Max. &Delta; E<sup>&lowast;</sup><sub>00</sub> |
+| RGB space | Num. of nodes s.t. &Delta; E<sup>&lowast;</sup><sub>ab</sub> &ge; 1 |Mean &Delta; E<sup>&lowast;</sup><sub>ab</sub> | Max. &Delta; E<sup>&lowast;</sup><sub>ab</sub> |Mean &Delta; E<sup>&lowast;</sup><sub>00</sub> | Max. &Delta; E<sup>&lowast;</sup><sub>00</sub> |
 | --- | ---: | ---: | ---: | ---:| ---: |
 | sRGB (D65) | 957 (0.006%)| 0.1993 | 3.009 | 0.09052 | 2.359 |
 | sRGB (D50) | 1252 (0.007%) | 0.2007 | 3.035 | 0.09400 | 2.253 |
 
 
-Note: as is clear from the above diagram, the error here means the color difference not to *true* colors but to the return values of `dufy:munsell-hvc-to-lchab`. For more information, see https://github.com/privet-kitty/dufy.
+Note: as is clear from the above diagram, the error here means the color difference not to *true* colors but to the return values of `dufy:munsell-hvc-to-lchab`. For more information about the converter, see https://github.com/privet-kitty/dufy.
 

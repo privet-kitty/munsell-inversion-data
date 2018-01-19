@@ -12,6 +12,8 @@
 (require :mid)
 
 (defparameter current-path *load-pathname*)
+(defparameter dat-dir-name "dat/")
+(defparameter dat-dir-path (merge-pathnames dat-dir-name current-path))
 
 (defparameter task-lst
   (list (cons "mid-srgb-d65" dufy:srgb)
@@ -21,7 +23,7 @@
 
 (defun do-task (basename rgbspace)
   (let* ((filename (concatenate 'string basename ".dat"))
-	 (path (merge-pathnames filename current-path)))
+	 (path (merge-pathnames filename dat-dir-path)))
     (format t "Now generating ~A...~%" filename)
     (mid:save-munsell-inversion-data
      (mid::make-munsell-inversion-data rgbspace t)

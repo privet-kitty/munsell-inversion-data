@@ -1,9 +1,14 @@
 # Munsell inversion data
-This repository provides fundamental datas for conversion from some color spaces (e.g. RGB) to Munsell color system. All datas are based on a color library [dufy](https://github.com/privet-kitty/dufy).
+This repository provides fundamental datas for conversion from some color spaces (e.g. RGB) to Munsell color system. All datas are generated with a color library [dufy](https://github.com/privet-kitty/dufy).
+
+## Copying
+I don't claim any rights on the transformation datas (i.e. files in dat/ directory), which are all based on the [Munsell renotation data](https://www.rit.edu/cos/colorscience/rc_munsell_renotation.php). The other codes are under the MIT lincense.
 
 ## RGB-to-Munsell binary data
 - sRGB: [mid-srgb-d65.dat](https://github.com/privet-kitty/munsell-inversion-data/raw/master/dat/mid-srgb-d65.dat)
 - sRGB (D50): [mid-srgb-d50.dat](https://github.com/privet-kitty/munsell-inversion-data/raw/master/dat/mid-srgb-d50.dat)
+- Adobe RGB: [mid-srgb-d65.dat](https://github.com/privet-kitty/munsell-inversion-data/raw/master/dat/mid-adobergb-d65.dat)
+- Adobe RGB (D50): [mid-srgb-d50.dat](https://github.com/privet-kitty/munsell-inversion-data/raw/master/dat/mid-adobergb-d50.dat)
 
 ### Structure
 Each of these files is 256 * 256 * 256 * 32 bit (&#8786; 64MB) binary data, which is a table of  conversion from hex (#000000 to #FFFFFF) to Munsell color.  Each 32-bit data gives a corresponding Munsell color in hue-value-chroma format in *big-endian* byte-order:
@@ -13,7 +18,7 @@ Each of these files is 256 * 256 * 256 * 32 bit (&#8786; 64MB) binary data, whic
 | 0 | 0 | 0000000000 | 0000000000 | 0000000000 |
 | F | - | H | V | C |
 
-#### F: flag of large interpolation error: 
+#### F: flag of large transformation error: 
 
 This flag means that the transformation error is slightly large, which is estimated as follows:
 
@@ -81,6 +86,8 @@ The transformation error is evaluated as described above. The general statistics
 | --- | ---: | ---: | ---: | ---:| ---: |
 | sRGB (D65) | 957 (0.006%)| 0.1993 | 3.009 | 0.09052 | 2.359 |
 | sRGB (D50) | 1252 (0.007%) | 0.2007 | 3.035 | 0.09400 | 2.253 |
+| Adobe RGB (D65) | 32158 (0.192%) | 0.2197 | 3.339 | 0.09133 | 2.704 |
+| Adobe RGB (D50) | 22745 (0.136%) | 0.2211 | 3.346 | 0.09456 | 2.598 |
 
 
 Note: as is clear from the above diagram, the error here means the color difference not to *true* colors but to the return values of `dufy:munsell-hvc-to-lchab`. For more information about the converter, see https://github.com/privet-kitty/dufy.

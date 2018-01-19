@@ -149,7 +149,7 @@
 	      num (* 100 (/ num (float possible-colors)))))
     (format t "Now filling the remaining data with a partial brute force method...~%")
     (fill-mid-brute-force mid 1d0 :rgbspace rgbspace)
-    (format t "Settting a flag on the nodes which give large errors: i.e. delta-Eab >= ~A~%" 1d0)
+    (format t "Settting a flag on the nodes which give large (i.e. delta-Eab >= ~A) errors.~%" 1d0)
     (set-flag-on-mid mid 1d0 :rgbspace rgbspace)
     (format t "Evaluating the errors of the final data...~%")
     (examine-interpolation-error mid :rgbspace rgbspace :all-data t)

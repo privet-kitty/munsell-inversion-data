@@ -1,5 +1,5 @@
 # Munsell inversion data
-This repository provides fundamental datas for conversion from some color spaces (e.g. RGB) to Munsell color system. All datas are generated with a color library [dufy](https://github.com/privet-kitty/dufy).
+This repository provides fundamental datas for conversion of some color spaces (e.g. RGB) to Munsell color system. All datas are generated with color library [dufy](https://github.com/privet-kitty/dufy).
 
 ## Copying
 I don't claim any rights on the transformation datas (i.e. files in dat/ directory), which are all based on the [Munsell renotation data](https://www.rit.edu/cos/colorscience/rc_munsell_renotation.php). The other codes are under the MIT lincense.
@@ -43,7 +43,7 @@ digraph G {
    {rank=same; munsell; hex;}
    {rank=same; xyzd65a; xyzd65b;}
 
-   munsell -> lchab  [label = "dufy:munsell-hvc-to-lchab"]
+   munsell -> lchab  [label = "dufy:mhvc-to-lchab"]
    hex -> xyzd65b
    lchab -> xyzc
    xyzc -> xyzd65a [label = "Bradford" ]
@@ -90,5 +90,5 @@ The transformation error is evaluated as described above. The general statistics
 | Adobe RGB (D50) | 22745 (0.136%) | 0.2211 | 3.346 | 0.09456 | 2.598 |
 
 
-Note: as is clear from the above diagram, the error here means the color difference not to *true* colors but to the return values of `dufy:munsell-hvc-to-lchab`. For more information about the converter, see https://github.com/privet-kitty/dufy.
+Note: as is clear from the above diagram, the error here means the color difference not to *true* colors but to the return values of `dufy:mhvc-to-lchab`. For more information about the converter, see https://github.com/privet-kitty/dufy.
 

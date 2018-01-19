@@ -7,8 +7,8 @@ I don't claim any rights on the transformation datas (i.e. files in dat/ directo
 ## RGB-to-Munsell binary data
 - sRGB: [mid-srgb-d65.dat](https://github.com/privet-kitty/munsell-inversion-data/raw/master/dat/mid-srgb-d65.dat)
 - sRGB (D50): [mid-srgb-d50.dat](https://github.com/privet-kitty/munsell-inversion-data/raw/master/dat/mid-srgb-d50.dat)
-- Adobe RGB: [mid-srgb-d65.dat](https://github.com/privet-kitty/munsell-inversion-data/raw/master/dat/mid-adobergb-d65.dat)
-- Adobe RGB (D50): [mid-srgb-d50.dat](https://github.com/privet-kitty/munsell-inversion-data/raw/master/dat/mid-adobergb-d50.dat)
+- Adobe RGB: [mid-adobergb-d65.dat](https://github.com/privet-kitty/munsell-inversion-data/raw/master/dat/mid-adobergb-d65.dat)
+- Adobe RGB (D50): [mid-adobergb-d50.dat](https://github.com/privet-kitty/munsell-inversion-data/raw/master/dat/mid-adobergb-d50.dat)
 
 ### Structure
 Each of these files is 256 * 256 * 256 * 32 bit (&#8786; 64MB) binary data, which is a table of  conversion from hex (#000000 to #FFFFFF) to Munsell color.  Each 32-bit data gives a corresponding Munsell color in hue-value-chroma format in *big-endian* byte-order:

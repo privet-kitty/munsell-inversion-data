@@ -98,7 +98,7 @@
 
 (defun make-munsell-inversion-data (&optional (rgbspace srgb) (with-interpolation t))
   (declare (optimize (speed 3) (safety 0)))
-  (let ((illum-c-to-foo (gen-ca-converter illum-c (rgbspace-illuminant rgbspace)))
+  (let ((illum-c-to-foo (gen-cat-function illum-c (rgbspace-illuminant rgbspace)))
 	(tmp-rgb255-to-xyz (rcurry #'dufy:rgb255-to-xyz rgbspace))
 	(mid (make-array possible-colors
 			 :element-type '(unsigned-byte 32)
@@ -159,7 +159,7 @@
 
 ;; set a flag on every node which means a larger error than STD-DELTAE.
 (defun set-flag-on-mid (mid std-deltae &key (rgbspace srgb) (deltae #'dufy:xyz-deltae))
-  (let ((illum-c-to-foo (gen-ca-converter illum-c (rgbspace-illuminant rgbspace))))
+  (let ((illum-c-to-foo (gen-cat-function illum-c (rgbspace-illuminant rgbspace))))
     (dotimes (hex possible-colors)
       (let ((u32 (aref mid hex)))
 	(destructuring-bind  (r1 g1 b1) (dufy:hex-to-rgb255 hex)
@@ -202,7 +202,7 @@
 
 	 
 (defun fill-mid-brute-force-once (mid std-deltae &key (rgbspace srgb) (keep-flag nil) (radius 20))
-  (let ((illum-c-to-foo (gen-ca-converter illum-c (rgbspace-illuminant rgbspace)))
+  (let ((illum-c-to-foo (gen-cat-function illum-c (rgbspace-illuminant rgbspace)))
 	(remaining-num 0))
     (dotimes (hex possible-colors remaining-num)
       (let ((u32 (aref mid hex)))
@@ -228,7 +228,7 @@
 
 ;; inverts hex to hvc-u32 with partial brute force method
 (defun search-hex-to-mhvc-u32 (hex init-mhvc-u32 &key (rgbspace srgb) (radius 20))
-  (let ((illum-c-to-foo (gen-ca-converter illum-c (rgbspace-illuminant rgbspace))))
+  (let ((illum-c-to-foo (gen-cat-function illum-c (rgbspace-illuminant rgbspace))))
     (destructuring-bind (r255 g255 b255)
 	(dufy:hex-to-rgb255 hex)
       (destructuring-bind (init-h1000 init-v1000 init-c500)
@@ -295,7 +295,7 @@
 
 ;; fills MID with invert-lchab-to-mhvc and returns the number of remaining nodes.
 (defun fill-mid-with-inverter (mid &key (rgbspace srgb) (keep-flag t) (threshold 1d-3))
-  (let ((illum-foo-to-c (gen-ca-converter (rgbspace-illuminant rgbspace) illum-c))
+  (let ((illum-foo-to-c (gen-cat-function (rgbspace-illuminant rgbspace) illum-c))
 	(xyz-to-lchab-illum-c (rcurry #'dufy:xyz-to-lchab dufy:illum-c))
 	(encode-mhvc-with-flag (rcurry #'encode-mhvc (if keep-flag 1 0)))
 	(max-iteration 500)
@@ -330,7 +330,7 @@
 (defun interpolate-once (munsell-inversion-data &key (rgbspace srgb) (xyz-deltae #'dufy:xyz-deltae))
   (let* ((source-mid (copy-seq munsell-inversion-data))
 	 (not-interpolated 0)
-	 (illum-c-to-foo (gen-ca-converter illum-c (rgbspace-illuminant rgbspace))))
+	 (illum-c-to-foo (gen-cat-function illum-c (rgbspace-illuminant rgbspace))))
     (dotimes (hex possible-colors not-interpolated)
       (let ((u32 (aref source-mid hex)))
 	(when (= u32 +maxu32+)
@@ -380,7 +380,7 @@
 
 
 ;; sets value with y-to-munsell-value in MID; Thereby chroma is properly corrected.
-(defparameter d65-to-c (gen-ca-converter illum-d65 illum-c))
+(defparameter d65-to-c (gen-cat-function illum-d65 illum-c))
 (defun set-atsm-value (munsell-inversion-data)
   (dotimes (hex possible-colors)
     (destructuring-bind (h1000 disused c500)
@@ -541,7 +541,7 @@
 ;; examines the total error of interpolated data in MID and
 ;; returns maximum delta-E.
 (defun examine-interpolation-error (munsell-inversion-data &key (start 0) (end possible-colors) (rgbspace srgb) (deltae #'dufy:xyz-deltae) (silent nil) (all-data nil))
-  (let ((illum-c-to-foo (gen-ca-converter illum-c (rgbspace-illuminant rgbspace)))
+  (let ((illum-c-to-foo (gen-cat-function illum-c (rgbspace-illuminant rgbspace)))
 	(maximum 0)
 	(worst-hex nil)
 	(sum 0)
@@ -595,7 +595,7 @@
 
 ;; count the nodes in MID which are too far from true colors.
 (defun count-bad-nodes (munsell-inversion-data std-deltae &key (rgbspace srgb) (deltae #'dufy:rgb255-deltae) (all-data nil))
-  (let ((illum-c-to-foo (gen-ca-converter illum-c (rgbspace-illuminant rgbspace)))
+  (let ((illum-c-to-foo (gen-cat-function illum-c (rgbspace-illuminant rgbspace)))
 	(tmp-xyz-to-rgb255 (rcurry #'dufy:xyz-to-rgb255 :rgbspace rgbspace))
 	(num-nodes 0))
     (loop for hex from 0 below possible-colors do

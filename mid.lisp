@@ -99,6 +99,7 @@
 (defun make-munsell-inversion-data (&optional (rgbspace srgb) (with-interpolation t))
   (declare (optimize (speed 3) (safety 0)))
   (let ((illum-c-to-foo (gen-ca-converter illum-c (rgbspace-illuminant rgbspace)))
+	(tmp-rgb255-to-xyz (rcurry #'dufy:rgb255-to-xyz rgbspace))
 	(mid (make-array possible-colors
 			 :element-type '(unsigned-byte 32)
 			 :initial-element +maxu32+))
@@ -121,7 +122,7 @@
 		    (unless out-of-gamut
 		      (let ((hex (apply #'dufy:rgb255-to-hex rgb255)))
 			(destructuring-bind (true-x true-y true-z)
-			    (apply (rcurry #'dufy:rgb255-to-xyz rgbspace) rgb255)
+			    (apply tmp-rgb255-to-xyz rgb255)
 			  (let ((old-deltae (aref deltae-arr hex))
 				(new-deltae (dufy:xyz-deltae x y z
 							     true-x true-y true-z
@@ -306,10 +307,11 @@
 	      (apply xyz-to-lchab-illum-c
 		     (apply illum-foo-to-c 
 			    (dufy:hex-to-xyz hex rgbspace)))
-	    (destructuring-bind (init-h nil init-c)
+	    (destructuring-bind (init-h disused init-c)
 		(if (= u32 +maxu32+)
 		    (dufy::rough-lchab-to-mhvc lstar cstarab hab)
 		    (decode-mhvc u32))
+	      (declare (ignore disused))
 	      (multiple-value-bind (hvc iteration)
 		  (dufy::invert-mhvc-to-lchab-with-init lstar cstarab hab
 							       init-h init-c
@@ -381,8 +383,9 @@
 (defparameter d65-to-c (gen-ca-converter illum-d65 illum-c))
 (defun set-atsm-value (munsell-inversion-data)
   (dotimes (hex possible-colors)
-    (destructuring-bind (h1000 nil c500)
+    (destructuring-bind (h1000 disused c500)
 	(decode-mhvc1000 (aref munsell-inversion-data hex))
+      (declare (ignore disused))
       (let* ((hue40 (clamp (/ h1000 25d0) 0 40))
 	     (new-value (y-to-munsell-value (second (apply d65-to-c
 							   (apply #'rgb255-to-xyz

@@ -1,5 +1,5 @@
-# Munsell inversion data
-This repository provides fundamental datas for conversion of some color spaces (e.g. RGB) to Munsell color system. All datas are generated with color library [dufy](https://github.com/privet-kitty/dufy).
+# Munsell Inversion Data
+This repository provides fundamental datas for conversion from some color spaces (e.g. RGB) to Munsell color system. All datas are generated with color library [dufy](https://github.com/privet-kitty/dufy).
 
 ## Copying
 I don't claim any rights on the transformation datas (i.e. files in dat/ directory), which are all based on the [Munsell renotation data](https://www.rit.edu/cos/colorscience/rc_munsell_renotation.php). The other codes are under the MIT lincense.

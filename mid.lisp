@@ -314,9 +314,9 @@
 	      (declare (ignore disused))
 	      (multiple-value-bind (hvc iteration)
 		  (dufy::invert-mhvc-to-lchab-with-init lstar cstarab hab
-							       init-h init-c
-							       :max-iteration max-iteration
-							       :threshold threshold)
+							init-h init-c
+							:max-iteration max-iteration
+							:threshold threshold)
 		(if (or (= iteration max-iteration)
 			(= iteration -1))
 		    ;;(format t "failed at hex #x~X, LCHab=(~A, ~A, ~A)~%" hex lstar cstarab hab)
@@ -714,3 +714,4 @@
 
 (defun test-blue (lb)
   (apply #'xyz-to-lchab (lrgb-to-xyz 0 0 lb)))
+

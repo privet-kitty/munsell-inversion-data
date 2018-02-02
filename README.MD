@@ -128,8 +128,8 @@ For each illuminant there are two data sets of different size:
 
 | Data set | L<sup>&lowast;</sup> | C<sup>&lowast;</sup><sub>ab</sub> | H<sub>ab</sub> |
 | -------------------- | --------------------- | ------ | -----|
-| Medium | 2, 4, 6, 8, 10, 20, 30, ... , 100 | 5, 10, 15, ..., max. in MRD | 0, 9, 18, ..., 351|
-| Large | 2, 4, 6, 8, 12, 14, 16, ... , 100 | 5, 10, 15, ..., max. in MRD| 0, 3, 6, ..., 357|
+| Medium | 10, 20, 30, ... , 100 | 5, 10, 15, ..., max. in MRD | 0, 9, 18, ..., 351|
+| Large | 2, 4, 6, ... , 100 | 5, 10, 15, ..., max. in MRD| 0, 3, 6, ..., 357|
 
 
 

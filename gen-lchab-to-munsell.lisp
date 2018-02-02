@@ -1,5 +1,5 @@
 ;;
-;; This is a script file to generate LCH(ab) to Munsell data.
+;; This is a script file to generate LCH(ab)-to-Munsell data.
 ;; $ sbcl --load "gen-lchab-to-munsell.lisp" --eval "(quit)"
 ;;
 
@@ -14,7 +14,7 @@
 (defparameter dat-dir-path (merge-pathnames dat-dir-name current-path))
 ;; (defparameter obj-path (merge-pathnames obj-name dat-dir-path))
 
-(defparameter rough-lst '((2 4 6 8 10 20 30 40 50 60 70 80 90 100) 9 5))
+(defparameter rough-lst '((10 20 30 40 50 60 70 80 90 100) 9 5))
 (defparameter fine-lst `(,(alexandria:iota 50 :start 2 :step 2) 3 5))
 (defun write-dat (filename &key (illuminant dufy:illum-c) (threshold 1d-11) (factor 0.2d0) (fine nil))
   ;; (declare (ignore illuminant))

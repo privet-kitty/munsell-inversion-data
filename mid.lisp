@@ -4,7 +4,7 @@
 	   :interpolate-mid
 	   :load-munsell-inversion-data
 	   :save-munsell-inversion-data
-	   :rgb255-to-mhvc
+	   :qrgb-to-mhvc
 	   :hex-to-mhvc
 	   :build-mid
 	   :examine-interpolation-error
@@ -82,6 +82,12 @@
 
 (defconstant +maxu32+ #xffffffff)
 
+(defmacro rgb1+ (x)
+  `(clamp (1+ ,x) 0 255))
+
+(defmacro rgb1- (x)
+  `(clamp (1- ,x) 0 255))
+
 ;; (defparameter munsell-inversion-data nil)
 
 ;; (defun initialize-munsell-inversion-data ()
@@ -99,7 +105,7 @@
 (defun make-munsell-inversion-data (&optional (rgbspace srgb) (with-interpolation t))
   (declare (optimize (speed 3) (safety 0)))
   (let ((illum-c-to-foo (gen-cat-function illum-c (rgbspace-illuminant rgbspace)))
-	(tmp-rgb255-to-xyz (rcurry #'dufy:rgb255-to-xyz rgbspace))
+	(tmp-qrgb-to-xyz (rcurry #'dufy:qrgb-to-xyz rgbspace))
 	(mid (make-array possible-colors
 			 :element-type '(unsigned-byte 32)
 			 :initial-element +maxu32+))
@@ -117,12 +123,12 @@
 		(destructuring-bind (x y z)
 		    (apply illum-c-to-foo
 			   (dufy::mhvc-to-xyz-illum-c hue value chroma))
-		  (multiple-value-bind (rgb255 out-of-gamut)
-		      (dufy:xyz-to-rgb255 x y z :rgbspace rgbspace :threshold 0.001d0)
+		  (multiple-value-bind (qrgb out-of-gamut)
+		      (dufy:xyz-to-qrgb x y z :rgbspace rgbspace :threshold 0.001d0)
 		    (unless out-of-gamut
-		      (let ((hex (apply #'dufy:rgb255-to-hex rgb255)))
+		      (let ((hex (apply #'dufy:qrgb-to-hex qrgb)))
 			(destructuring-bind (true-x true-y true-z)
-			    (apply tmp-rgb255-to-xyz rgb255)
+			    (apply tmp-qrgb-to-xyz qrgb)
 			  (let ((old-deltae (aref deltae-arr hex))
 				(new-deltae (dufy:xyz-deltae x y z
 							     true-x true-y true-z
@@ -162,8 +168,8 @@
   (let ((illum-c-to-foo (gen-cat-function illum-c (rgbspace-illuminant rgbspace))))
     (dotimes (hex possible-colors)
       (let ((u32 (aref mid hex)))
-	(destructuring-bind  (r1 g1 b1) (dufy:hex-to-rgb255 hex)
-	  (destructuring-bind (x1 y1 z1) (dufy:rgb255-to-xyz r1 g1 b1 rgbspace)
+	(destructuring-bind  (r1 g1 b1) (dufy:hex-to-qrgb hex)
+	  (destructuring-bind (x1 y1 z1) (dufy:qrgb-to-xyz r1 g1 b1 rgbspace)
 	    (destructuring-bind (x2 y2 z2)
 		(apply illum-c-to-foo
 		       (apply #'dufy:mhvc-to-xyz-illum-c
@@ -230,11 +236,11 @@
 (defun search-hex-to-mhvc-u32 (hex init-mhvc-u32 &key (rgbspace srgb) (radius 20))
   (let ((illum-c-to-foo (gen-cat-function illum-c (rgbspace-illuminant rgbspace))))
     (destructuring-bind (r255 g255 b255)
-	(dufy:hex-to-rgb255 hex)
+	(dufy:hex-to-qrgb hex)
       (destructuring-bind (init-h1000 init-v1000 init-c500)
 	  (decode-mhvc1000 init-mhvc-u32)
 	(destructuring-bind (true-x true-y true-z)
-	    (dufy:rgb255-to-xyz r255 g255 b255 rgbspace)
+	    (dufy:qrgb-to-xyz r255 g255 b255 rgbspace)
 	  (let ((cand-h1000 init-h1000)
 		(cand-v1000 init-v1000)
 		(cand-c500 init-c500)
@@ -325,8 +331,6 @@
 			  (apply encode-mhvc-with-flag hvc)))))))))
     num-failure))
 
-;;failed at e.g. LCH(ab)=34.85732307205924d0, 66.51082690223494d0, 45.608304959637366d0
-
 (defun interpolate-once (munsell-inversion-data &key (rgbspace srgb) (xyz-deltae #'dufy:xyz-deltae))
   (let* ((source-mid (copy-seq munsell-inversion-data))
 	 (not-interpolated 0)
@@ -334,20 +338,20 @@
     (dotimes (hex possible-colors not-interpolated)
       (let ((u32 (aref source-mid hex)))
 	(when (= u32 +maxu32+)
-	  (destructuring-bind (r g b) (dufy:hex-to-rgb255 hex)
-	    (destructuring-bind (x y z) (dufy:rgb255-to-xyz r g b rgbspace)
+	  (destructuring-bind (r g b) (dufy:hex-to-qrgb hex)
+	    (destructuring-bind (x y z) (dufy:qrgb-to-xyz r g b rgbspace)
 	      (let ((neighbors
-		     (list (list r g (dufy:rgb1+ b))
-			   (list r g (dufy:rgb1- b))
-			   (list r (dufy:rgb1+ g) b)
-			   (list r (dufy:rgb1- g) b)
-			   (list (dufy:rgb1+ r) g b)
-			   (list (dufy:rgb1- r) g b))))
+		     (list (list r g (rgb1+ b))
+			   (list r g (rgb1- b))
+			   (list r (rgb1+ g) b)
+			   (list r (rgb1- g) b)
+			   (list (rgb1+ r) g b)
+			   (list (rgb1- r) g b))))
 		(let ((nearest-hex
-		       (apply #'dufy:rgb255-to-hex
+		       (apply #'dufy:qrgb-to-hex
 			(find-least-score
-			 #'(lambda (n-rgb255)
-			     (let* ((n-hex (apply #'dufy:rgb255-to-hex n-rgb255))
+			 #'(lambda (n-qrgb)
+			     (let* ((n-hex (apply #'dufy:qrgb-to-hex n-qrgb))
 				    (n-u32 (aref source-mid n-hex)))
 			       (if (= n-u32 +maxu32+)
 				   most-positive-double-float
@@ -388,8 +392,8 @@
       (declare (ignore disused))
       (let* ((hue40 (clamp (/ h1000 25d0) 0 40))
 	     (new-value (y-to-munsell-value (second (apply d65-to-c
-							   (apply #'rgb255-to-xyz
-								  (hex-to-rgb255 hex))))))
+							   (apply #'qrgb-to-xyz
+								  (hex-to-qrgb hex))))))
 	     (chroma (* c500 0.1d0))
 	     (v1000-new (round (* new-value 100)))
 	     (c500-new (round (* (min (max-chroma hue40 new-value) chroma) 10))))
@@ -428,23 +432,23 @@
 	
 
 (defun check-data-from-srgb (munsell-inversion-data r g b)
-  (let ((u32 (aref munsell-inversion-data (dufy:rgb255-to-hex r g b))))
+  (let ((u32 (aref munsell-inversion-data (dufy:qrgb-to-hex r g b))))
     (if (= u32 +maxu32+)
 	nil
-	(apply #'dufy:mhvc-to-rgb255 (decode-mhvc u32)))))
+	(apply #'dufy:mhvc-to-qrgb (decode-mhvc u32)))))
 
 (defun check-all-data (munsell-inversion-data)
   (dotimes (x possible-colors)
-    (let* ((srgb (dufy:hex-to-rgb255 x))
+    (let* ((srgb (dufy:hex-to-qrgb x))
 	   (srgb2 (apply #'check-data-from-srgb (append (list munsell-inversion-data) srgb))))
       (unless (null srgb2)
 	(when (not (equal srgb srgb2))
 	  (format t "inacurrate value at position: ~a" x))))))
 	  
 
-;; RGB255 to munsell HVC
-(defun rgb255-to-mhvc (r g b munsell-inversion-data)
-  (decode-mhvc (aref munsell-inversion-data (dufy:rgb255-to-hex r g b))))
+;; QRGB to munsell HVC
+(defun qrgb-to-mhvc (r g b munsell-inversion-data)
+  (decode-mhvc (aref munsell-inversion-data (dufy:qrgb-to-hex r g b))))
 
 (defun hex-to-mhvc (hex munsell-inversion-data)
   (decode-mhvc (aref munsell-inversion-data hex)))
@@ -490,7 +494,7 @@
      (let ((gaps 0))
        (dotimes (r 256)
 	 (dotimes (g 256)
-	   (if (= +maxu32+ (aref munsell-inversion-data (dufy:rgb255-to-hex r g b)))
+	   (if (= +maxu32+ (aref munsell-inversion-data (dufy:qrgb-to-hex r g b)))
 	       (incf gaps))))
        (format t "b = ~a, gap rate = ~a~%" b (/ gaps 65536.0))
        (setf gaps-sum (+ gaps-sum gaps))))
@@ -503,7 +507,7 @@
      (let ((gaps 0))
        (dotimes (r 256)
 	 (dotimes (g 256)
-	   (if (interpolatedp (aref munsell-inversion-data (dufy:rgb255-to-hex r g b)))
+	   (if (interpolatedp (aref munsell-inversion-data (dufy:qrgb-to-hex r g b)))
 	       (incf gaps))))
        (format t "b = ~a, gap rate = ~a~%" b (/ gaps 65536.0))
        (setf gaps-sum (+ gaps-sum gaps))))
@@ -523,7 +527,7 @@
 			     (max-b (min 255 (- brightness-sum r g))))
 			 (loop for b from min-b to max-b do
 			      (incf number-of-colors)
-			      (when (= +maxu32+ (aref munsell-inversion-data (dufy:rgb255-to-hex r g b)))
+			      (when (= +maxu32+ (aref munsell-inversion-data (dufy:qrgb-to-hex r g b)))
 				(incf gaps)
 				(incf gaps-sum)))))))
 	   (format t "brightness = ~a, gap rate = ~a (= ~a / ~a).~%"
@@ -535,7 +539,7 @@
     
 
 (defun interiorp (hex)
-  (destructuring-bind (r g b) (hex-to-rgb255 hex)
+  (destructuring-bind (r g b) (hex-to-qrgb hex)
     (and (/= r 0) (/= g 0) (/= b 0) (/= r 255) (/= g 255) (/= b 255))))
 
 ;; examines the total error of interpolated data in MID and
@@ -550,8 +554,8 @@
       (let ((u32 (aref munsell-inversion-data hex)))
 	(when (or all-data
 		  (interpolatedp u32))
-	  (destructuring-bind  (r1 g1 b1) (dufy:hex-to-rgb255 hex)
-	    (destructuring-bind (x1 y1 z1) (dufy:rgb255-to-xyz r1 g1 b1 rgbspace)
+	  (destructuring-bind  (r1 g1 b1) (dufy:hex-to-qrgb hex)
+	    (destructuring-bind (x1 y1 z1) (dufy:qrgb-to-xyz r1 g1 b1 rgbspace)
 	      (destructuring-bind (x2 y2 z2)
 		  (apply illum-c-to-foo
 			 (apply #'dufy:mhvc-to-xyz-illum-c
@@ -569,7 +573,7 @@
       (format t "Maximum Color Difference: ~a at hex #x~x~%" maximum worst-hex))
     maximum))
 
-;; (dufy-tools:examine-interpolation-error mid :rgbspace dufy:srgbd65 :deltae #'dufy:rgb255-deltae)
+;; (dufy-tools:examine-interpolation-error mid :rgbspace dufy:srgbd65 :deltae #'dufy:qrgb-deltae)
 ;; Number of Interpolated Nodes = 3716978 (22.155%)
 ;; Mean Color Difference: 0.32306172649351494d0
 ;; Maximum Color Difference: 10.381509801482807d0 at hex #x45F4
@@ -594,17 +598,17 @@
 
 
 ;; count the nodes in MID which are too far from true colors.
-(defun count-bad-nodes (munsell-inversion-data std-deltae &key (rgbspace srgb) (deltae #'dufy:rgb255-deltae) (all-data nil))
+(defun count-bad-nodes (munsell-inversion-data std-deltae &key (rgbspace srgb) (deltae #'dufy:qrgb-deltae) (all-data nil))
   (let ((illum-c-to-foo (gen-cat-function illum-c (rgbspace-illuminant rgbspace)))
-	(tmp-xyz-to-rgb255 (rcurry #'dufy:xyz-to-rgb255 :rgbspace rgbspace))
+	(tmp-xyz-to-qrgb (rcurry #'dufy:xyz-to-qrgb :rgbspace rgbspace))
 	(num-nodes 0))
     (loop for hex from 0 below possible-colors do
       (let ((u32 (aref munsell-inversion-data hex)))
 	(when (or all-data
 		  (interpolatedp u32))
-	  (destructuring-bind  (r1 g1 b1) (dufy:hex-to-rgb255 hex)
+	  (destructuring-bind  (r1 g1 b1) (dufy:hex-to-qrgb hex)
 	    (destructuring-bind (r2 g2 b2)
-		(apply tmp-xyz-to-rgb255
+		(apply tmp-xyz-to-qrgb
 		       (apply illum-c-to-foo
 			      (apply #'dufy:mhvc-to-xyz-illum-c
 				     (decode-mhvc u32))))
@@ -614,10 +618,10 @@
     num-nodes))
 
 
-(defun check-error-of-hex (hex mid &optional (deltae #'dufy:rgb255-deltae))
-  (let* ((rgb1 (dufy:hex-to-rgb255 hex))
-	 (rgb2 (apply #'dufy:mhvc-to-rgb255
-		      (apply (rcurry #'rgb255-to-mhvc mid)
+(defun check-error-of-hex (hex mid &optional (deltae #'dufy:qrgb-deltae))
+  (let* ((rgb1 (dufy:hex-to-qrgb hex))
+	 (rgb2 (apply #'dufy:mhvc-to-qrgb
+		      (apply (rcurry #'qrgb-to-mhvc mid)
 			     rgb1))))
     (format t "Munsell HVC: ~A~%" (decode-mhvc (aref mid hex)))
     (format t "in MID:~A~%" rgb1)
@@ -677,21 +681,21 @@
   
 ;; get the maximun radius of the spheres of missing values in the non-interpolated munsell inversion data.
 (defun get-radius-of-blank-sphere (mid depth r g b)
-  (if (not (= +maxu32+ (aref mid (dufy:rgb255-to-hex r g b))))
+  (if (not (= +maxu32+ (aref mid (dufy:qrgb-to-hex r g b))))
       depth
-      (max (get-radius-of-blank-sphere mid (1+ depth) r g (dufy:rgb1+ b))
-	   (get-radius-of-blank-sphere mid (1+ depth) r g (dufy:rgb1- b))
-	   (get-radius-of-blank-sphere mid (1+ depth) r (dufy:rgb1+ g) b)
-	   (get-radius-of-blank-sphere mid (1+ depth) r (dufy:rgb1- g) b)
-	   (get-radius-of-blank-sphere mid (1+ depth) (dufy:rgb1+ r) g b)
-	   (get-radius-of-blank-sphere mid (1+ depth) (dufy:rgb1- r) g b))))
+      (max (get-radius-of-blank-sphere mid (1+ depth) r g (rgb1+ b))
+	   (get-radius-of-blank-sphere mid (1+ depth) r g (rgb1- b))
+	   (get-radius-of-blank-sphere mid (1+ depth) r (rgb1+ g) b)
+	   (get-radius-of-blank-sphere mid (1+ depth) r (rgb1- g) b)
+	   (get-radius-of-blank-sphere mid (1+ depth) (rgb1+ r) g b)
+	   (get-radius-of-blank-sphere mid (1+ depth) (rgb1- r) g b))))
 
 (defun maximum-radius-of-blank-sphere (mid)
   (let ((maximum 0))
     (dotimes (hex possible-colors maximum)
       (when (= (mod hex 10000) 0)
 	(format t "~a / ~a hues were processed." hex possible-colors))
-      (let ((rad (apply #'get-radius-of-blank-sphere mid 0 (dufy:hex-to-rgb255 hex))))
+      (let ((rad (apply #'get-radius-of-blank-sphere mid 0 (dufy:hex-to-qrgb hex))))
 	(if (> rad maximum)
 	    (setf maximum rad))))))
 

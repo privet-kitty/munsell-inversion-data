@@ -16,12 +16,12 @@
 
 (defparameter rough-lst '((10 20 30 40 50 60 70 80 90 100) 9 5))
 (defparameter fine-lst `(,(alexandria:iota 50 :start 2 :step 2) 3 5))
-(defun write-dat (filename &key (illuminant dufy:illum-c) (threshold 1d-11) (factor 0.2d0) (fine nil))
+(defun write-dat (filename &key (illuminant dufy:+illum-c+) (threshold 1d-11) (factor 0.2d0) (fine nil))
   ;; (declare (ignore illuminant))
   (let ((path (merge-pathnames filename dat-dir-path))
 	(lst (if fine fine-lst rough-lst))
 	(max-ite 2000)
-	(cat (dufy:gen-cat-function illuminant dufy:illum-c)))
+	(cat (dufy:gen-cat-function illuminant dufy:+illum-c+)))
     (with-open-file (out path
 			 :direction :output
 			 :if-exists :supersede)
@@ -31,7 +31,7 @@
 	(loop for hab from 0 below 360 by (second lst) do
 	     (loop for cstarab from 10 to 1000 by (third lst) do
 		  (destructuring-bind (l-cated c-cated h-cated)
-		      (apply (alexandria:rcurry #'dufy:xyz-to-lchab dufy:illum-c)
+		      (apply (alexandria:rcurry #'dufy:xyz-to-lchab dufy:+illum-c+)
 			     (apply cat
 				    (dufy:lchab-to-xyz lstar cstarab hab illuminant)))
 		    (multiple-value-bind (hvc ite)
@@ -55,21 +55,21 @@
     (format t "saved in ~A.~%" path)))
 
 (write-dat "lchab-to-munsell.dat"
-	   :illuminant dufy:illum-c
+	   :illuminant dufy:+illum-c+
 	   :fine nil)
 (write-dat "lchab-to-munsell-large.dat"
-	   :illuminant dufy:illum-c
+	   :illuminant dufy:+illum-c+
 	   :fine t)
 (write-dat "lchab-to-munsell-d65.dat"
-	   :illuminant dufy:illum-d65
+	   :illuminant dufy:+illum-d65+
 	   :fine nil)
 (write-dat "lchab-to-munsell-d65-large.dat"
-	   :illuminant dufy:illum-d65
+	   :illuminant dufy:+illum-d65+
 	   :fine t
 	   :factor 0.15d0)
 (write-dat "lchab-to-munsell-d50.dat"
-	   :illuminant dufy:illum-d50
+	   :illuminant dufy:+illum-d50+
 	   :fine nil)
 (write-dat "lchab-to-munsell-d50-large.dat"
-	   :illuminant dufy:illum-d50
+	   :illuminant dufy:+illum-d50+
 	   :fine t)

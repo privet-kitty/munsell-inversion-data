@@ -102,9 +102,9 @@
 	      :element-type '(unsigned-byte 32)
 	      :initial-element +maxu32+))
 
-(defun make-munsell-inversion-data (&optional (rgbspace srgb) (with-interpolation t))
+(defun make-munsell-inversion-data (&optional (rgbspace +srgb+) (with-interpolation t))
   (declare (optimize (speed 3) (safety 0)))
-  (let ((illum-c-to-foo (gen-cat-function illum-c (rgbspace-illuminant rgbspace)))
+  (let ((illum-c-to-foo (gen-cat-function +illum-c+ (rgbspace-illuminant rgbspace)))
 	(tmp-qrgb-to-xyz (rcurry #'dufy:qrgb-to-xyz rgbspace))
 	(mid (make-array possible-colors
 			 :element-type '(unsigned-byte 32)
@@ -164,8 +164,8 @@
 
 
 ;; set a flag on every node which means a larger error than STD-DELTAE.
-(defun set-flag-on-mid (mid std-deltae &key (rgbspace srgb) (deltae #'dufy:xyz-deltae))
-  (let ((illum-c-to-foo (gen-cat-function illum-c (rgbspace-illuminant rgbspace))))
+(defun set-flag-on-mid (mid std-deltae &key (rgbspace +srgb+) (deltae #'dufy:xyz-deltae))
+  (let ((illum-c-to-foo (gen-cat-function +illum-c+ (rgbspace-illuminant rgbspace))))
     (dotimes (hex possible-colors)
       (let ((u32 (aref mid hex)))
 	(destructuring-bind  (r1 g1 b1) (dufy:hex-to-qrgb hex)
@@ -184,7 +184,7 @@
 
 
 
-(defun fill-mid-brute-force (mid std-deltae &key (rgbspace srgb))
+(defun fill-mid-brute-force (mid std-deltae &key (rgbspace +srgb+))
   (let ((max-error most-positive-double-float)
 	(remaining-num (count-interpolated mid)))
     (labels ((mysearch (radius) ; brute force search within a circle of RADIUS.
@@ -207,8 +207,8 @@
       (mysearch 20))))
 
 	 
-(defun fill-mid-brute-force-once (mid std-deltae &key (rgbspace srgb) (keep-flag nil) (radius 20))
-  (let ((illum-c-to-foo (gen-cat-function illum-c (rgbspace-illuminant rgbspace)))
+(defun fill-mid-brute-force-once (mid std-deltae &key (rgbspace +srgb+) (keep-flag nil) (radius 20))
+  (let ((illum-c-to-foo (gen-cat-function +illum-c+ (rgbspace-illuminant rgbspace)))
 	(remaining-num 0))
     (dotimes (hex possible-colors remaining-num)
       (let ((u32 (aref mid hex)))
@@ -233,8 +233,8 @@
 
 
 ;; inverts hex to hvc-u32 with partial brute force method
-(defun search-hex-to-mhvc-u32 (hex init-mhvc-u32 &key (rgbspace srgb) (radius 20))
-  (let ((illum-c-to-foo (gen-cat-function illum-c (rgbspace-illuminant rgbspace))))
+(defun search-hex-to-mhvc-u32 (hex init-mhvc-u32 &key (rgbspace +srgb+) (radius 20))
+  (let ((illum-c-to-foo (gen-cat-function +illum-c+ (rgbspace-illuminant rgbspace))))
     (destructuring-bind (r255 g255 b255)
 	(dufy:hex-to-qrgb hex)
       (destructuring-bind (init-h1000 init-v1000 init-c500)
@@ -300,9 +300,9 @@
 			(car lst)))
 
 ;; fills MID with invert-lchab-to-mhvc and returns the number of remaining nodes.
-(defun fill-mid-with-inverter (mid &key (rgbspace srgb) (keep-flag t) (threshold 1d-3))
-  (let ((illum-foo-to-c (gen-cat-function (rgbspace-illuminant rgbspace) illum-c))
-	(xyz-to-lchab-illum-c (rcurry #'dufy:xyz-to-lchab dufy:illum-c))
+(defun fill-mid-with-inverter (mid &key (rgbspace +srgb+) (keep-flag t) (threshold 1d-3))
+  (let ((illum-foo-to-c (gen-cat-function (rgbspace-illuminant rgbspace) +illum-c+))
+	(xyz-to-lchab-illum-c (rcurry #'dufy:xyz-to-lchab +illum-c+))
 	(encode-mhvc-with-flag (rcurry #'encode-mhvc (if keep-flag 1 0)))
 	(max-iteration 500)
 	(num-failure 0))
@@ -331,10 +331,10 @@
 			  (apply encode-mhvc-with-flag hvc)))))))))
     num-failure))
 
-(defun interpolate-once (munsell-inversion-data &key (rgbspace srgb) (xyz-deltae #'dufy:xyz-deltae))
+(defun interpolate-once (munsell-inversion-data &key (rgbspace +srgb+) (xyz-deltae #'dufy:xyz-deltae))
   (let* ((source-mid (copy-seq munsell-inversion-data))
 	 (not-interpolated 0)
-	 (illum-c-to-foo (gen-cat-function illum-c (rgbspace-illuminant rgbspace))))
+	 (illum-c-to-foo (gen-cat-function +illum-c+ (rgbspace-illuminant rgbspace))))
     (dotimes (hex possible-colors not-interpolated)
       (let ((u32 (aref source-mid hex)))
 	(when (= u32 +maxu32+)
@@ -370,7 +370,7 @@
 
 
 
-(defun interpolate-mid (munsell-inversion-data &key (rgbspace srgb) (xyz-deltae #'dufy:xyz-deltae))
+(defun interpolate-mid (munsell-inversion-data &key (rgbspace +srgb+) (xyz-deltae #'dufy:xyz-deltae))
   (let ((i 0))
     (loop
        (let ((remaining (interpolate-once munsell-inversion-data
@@ -384,7 +384,7 @@
 
 
 ;; sets value with y-to-munsell-value in MID; Thereby chroma is properly corrected.
-(defparameter d65-to-c (gen-cat-function illum-d65 illum-c))
+(defparameter d65-to-c (gen-cat-function +illum-d65+ +illum-c+))
 (defun set-atsm-value (munsell-inversion-data)
   (dotimes (hex possible-colors)
     (destructuring-bind (h1000 disused c500)
@@ -544,8 +544,8 @@
 
 ;; examines the total error of interpolated data in MID and
 ;; returns maximum delta-E.
-(defun examine-interpolation-error (munsell-inversion-data &key (start 0) (end possible-colors) (rgbspace srgb) (deltae #'dufy:xyz-deltae) (silent nil) (all-data nil))
-  (let ((illum-c-to-foo (gen-cat-function illum-c (rgbspace-illuminant rgbspace)))
+(defun examine-interpolation-error (munsell-inversion-data &key (start 0) (end possible-colors) (rgbspace +srgb+) (deltae #'dufy:xyz-deltae) (silent nil) (all-data nil))
+  (let ((illum-c-to-foo (gen-cat-function +illum-c+ (rgbspace-illuminant rgbspace)))
 	(maximum 0)
 	(worst-hex nil)
 	(sum 0)
@@ -573,7 +573,7 @@
       (format t "Maximum Color Difference: ~a at hex #x~x~%" maximum worst-hex))
     maximum))
 
-;; (dufy-tools:examine-interpolation-error mid :rgbspace dufy:srgbd65 :deltae #'dufy:qrgb-deltae)
+;; (dufy-tools:examine-interpolation-error mid :rgbspace dufy:+srgb+ :deltae #'dufy:qrgb-deltae)
 ;; Number of Interpolated Nodes = 3716978 (22.155%)
 ;; Mean Color Difference: 0.32306172649351494d0
 ;; Maximum Color Difference: 10.381509801482807d0 at hex #x45F4
@@ -582,7 +582,7 @@
 
 ;; (dufy-tools::fill-mid-with-inverter mid :threshold 0.001d0)
 ;; Number of failure: 120734
-;; (dufy-tools:examine-interpolation-error mid :rgbspace dufy:srgbd65)
+;; (dufy-tools:examine-interpolation-error mid :rgbspace dufy:+srgb+)
 ;; Number of Interpolated Nodes = 3716978 (22.155%)
 ;; Mean Color Difference: 0.2874144244305755d0
 ;; Maximum Color Difference: 5.651441223696464d0 at hex #x412600
@@ -591,15 +591,15 @@
 
 ;; (dufy-tools::fill-mid-with-inverter mid :threshold 0.01d0)
 ;; Number of failure: 120734
-;; (dufy-tools:examine-interpolation-error mid :rgbspace dufy:srgbd65)
+;; (dufy-tools:examine-interpolation-error mid :rgbspace dufy:+srgb+)
 ;; Number of Interpolated Nodes = 3716978 (22.155%)
 ;; Mean Color Difference: 0.29621689179528365d0
 ;; Maximum Color Difference: 5.651441223696464d0 at hex #x412600
 
 
 ;; count the nodes in MID which are too far from true colors.
-(defun count-bad-nodes (munsell-inversion-data std-deltae &key (rgbspace srgb) (deltae #'dufy:qrgb-deltae) (all-data nil))
-  (let ((illum-c-to-foo (gen-cat-function illum-c (rgbspace-illuminant rgbspace)))
+(defun count-bad-nodes (munsell-inversion-data std-deltae &key (rgbspace +srgb+) (deltae #'dufy:qrgb-deltae) (all-data nil))
+  (let ((illum-c-to-foo (gen-cat-function +illum-c+ (rgbspace-illuminant rgbspace)))
 	(tmp-xyz-to-qrgb (rcurry #'dufy:xyz-to-qrgb :rgbspace rgbspace))
 	(num-nodes 0))
     (loop for hex from 0 below possible-colors do

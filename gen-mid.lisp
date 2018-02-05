@@ -15,11 +15,18 @@
 (defparameter dat-dir-name "dat/")
 (defparameter dat-dir-path (merge-pathnames dat-dir-name current-path))
 
+
+(defparameter +srgbd50+
+  (dufy:copy-rgbspace dufy:+srgb+ :illuminant dufy:+illum-d50+))
+
+(defparameter +adobed50+
+  (dufy:copy-rgbspace dufy:+adobe+ :illuminant dufy:+illum-d50+))
+
 (defparameter task-lst
   (list (cons "mid-srgb-d65" dufy:+srgb+)
-	(cons "mid-srgb-d50" dufy:+srgbd50+)
+	(cons "mid-srgb-d50" +srgbd50+)
 	(cons "mid-adobergb-d65" dufy:+adobe+)
-	(cons "mid-adobergb-d50" dufy:+adobed50+)))
+	(cons "mid-adobergb-d50" +adobed50+)))
 
 (defun do-task (basename rgbspace)
   (let* ((filename (concatenate 'string basename ".dat"))
@@ -38,6 +45,6 @@
 
 
 ;; (do-task "mid-srgb-d65" dufy:+srgb+)
-;; (do-task "mid-srgb-d50" dufy:+srgbd50+)
+;; (do-task "mid-srgb-d50" +srgbd50+)
 ;; (do-task "mid-adobergb-d65" dufy:+adobe+)
-;; (do-task "mid-adobergb-d50" dufy:+adobed50+)))
+;; (do-task "mid-adobergb-d50" +adobed50+)))

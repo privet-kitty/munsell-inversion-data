@@ -5,6 +5,7 @@
 	   :load-munsell-inversion-data
 	   :save-munsell-inversion-data
 	   :qrgb-to-mhvc
+	   :qrgb-to-munsell
 	   :hex-to-mhvc
 	   :build-mid
 	   :examine-interpolation-error
@@ -43,7 +44,7 @@
 ;; D: quantized chroma by 0.1; [0, 50] -> {0, 1, ..., 500};
 
 (defun encode-mhvc1000 (h1000 v1000 c500 &optional (flag-interpolated 0))
-  (declare (optimize (speed 3) (safety 0))
+  (declare (optimize (speed 3) (safety 1))
 	   ((integer 0 1000) h1000 v1000 c500)
 	   ((integer 0 1) flag-interpolated))
   (+ (ash flag-interpolated 31)
@@ -60,6 +61,7 @@
 			  (round (* chroma 10))
 			  flag-interpolated))
 
+(declaim (inline interpolatedp))
 (defun interpolatedp (u32)
   (not (zerop (logand u32 #b10000000000000000000000000000000))))
 
@@ -70,15 +72,15 @@
   (logand #b01111111111111111111111111111111 u32))
 
 (defun decode-mhvc1000 (u32)
-  (list (logand (ash u32 -20) #b1111111111)
-	(logand (ash u32 -10) #b1111111111)
-	(logand u32 #b1111111111)))
+  (values (logand (ash u32 -20) #b1111111111)
+	  (logand (ash u32 -10) #b1111111111)
+	  (logand u32 #b1111111111)))
 
 (defun decode-mhvc (u32)
-  (destructuring-bind (h1000 v1000 c500) (decode-mhvc1000 u32)
-    (list (/ h1000 25.0)
-	  (/ v1000 100.0)
-	  (/ c500 10.0))))
+  (multiple-value-bind (h1000 v1000 c500) (decode-mhvc1000 u32)
+    (values (/ h1000 25d0)
+	    (/ v1000 100d0)
+	    (/ c500 10d0))))
 
 (defconstant +maxu32+ #xffffffff)
 
@@ -103,9 +105,8 @@
 	      :initial-element +maxu32+))
 
 (defun make-munsell-inversion-data (&optional (rgbspace +srgb+) (with-interpolation t))
-  (declare (optimize (speed 3) (safety 0)))
+  (declare (optimize (speed 3) (safety 1)))
   (let ((illum-c-to-foo (gen-cat-function +illum-c+ (rgbspace-illuminant rgbspace)))
-	(tmp-qrgb-to-xyz (rcurry #'dufy:qrgb-to-xyz rgbspace))
 	(mid (make-array possible-colors
 			 :element-type '(unsigned-byte 32)
 			 :initial-element +maxu32+))
@@ -117,29 +118,28 @@
 	(format t "processing data at hue ~a / 1000~%" h1000)
 	(dotimes (v1000 1001)
 	  (let* ((value (* v1000 0.01d0))
-		 (maxc500 (1+ (* (dufy:max-chroma hue value) 10))))
+		 (maxc500 (1+ (* (max-chroma hue value) 10))))
 	    (dotimes (c500 maxc500)
 	      (let ((chroma (* c500 0.1d0)))
-		(destructuring-bind (x y z)
-		    (apply illum-c-to-foo
-			   (dufy::mhvc-to-xyz-illum-c hue value chroma))
-		  (multiple-value-bind (qrgb out-of-gamut)
-		      (dufy:xyz-to-qrgb x y z :rgbspace rgbspace :threshold 0.001d0)
-		    (unless out-of-gamut
-		      (let ((hex (apply #'dufy:qrgb-to-hex qrgb)))
-			(destructuring-bind (true-x true-y true-z)
-			    (apply tmp-qrgb-to-xyz qrgb)
-			  (let ((old-deltae (aref deltae-arr hex))
-				(new-deltae (dufy:xyz-deltae x y z
-							     true-x true-y true-z
-							     :illuminant (rgbspace-illuminant rgbspace))))
-			    (declare (double-float old-deltae new-deltae))
-			    (when (< new-deltae old-deltae)
-					;rotate if the new color is nearer to the true color than the old one.
-			      (setf (aref mid hex)
-				    (encode-mhvc1000 h1000 v1000 c500))
-			      (setf (aref deltae-arr hex)
-				    new-deltae))))))))))))))
+		(multiple-value-bind (x y z)
+		    (multiple-value-call illum-c-to-foo
+		      (mhvc-to-xyz-illum-c hue value chroma))
+		  (multiple-value-bind (qr qg qb)
+		      (dufy:xyz-to-qrgb x y z :rgbspace rgbspace)
+		    (unless (dufy:qrgb-out-of-gamut-p qr qg qb)
+		      (let ((hex (dufy:qrgb-to-hex qr qg qb rgbspace)))
+			(let ((old-deltae (aref deltae-arr hex))
+			      (new-deltae (multiple-value-call #'dufy:xyz-deltae
+					    x y z
+					    (dufy:qrgb-to-xyz qr qg qb)
+					    :illuminant (rgbspace-illuminant rgbspace))))
+			  (declare (double-float old-deltae new-deltae))
+			  (when (< new-deltae old-deltae)
+			    ;; rotate if the new color is nearer to the true color than the old one.
+			    (setf (aref mid hex)
+				  (encode-mhvc1000 h1000 v1000 c500))
+			    (setf (aref deltae-arr hex)
+				  new-deltae)))))))))))))
     (let ((gaps (count-gaps mid)))
       (format t "The first data has been set. The number of gaps is ~A (~A %).~%"
 	      gaps (* 100 (/ gaps (float possible-colors)))))
@@ -168,12 +168,12 @@
   (let ((illum-c-to-foo (gen-cat-function +illum-c+ (rgbspace-illuminant rgbspace))))
     (dotimes (hex possible-colors)
       (let ((u32 (aref mid hex)))
-	(destructuring-bind  (r1 g1 b1) (dufy:hex-to-qrgb hex)
-	  (destructuring-bind (x1 y1 z1) (dufy:qrgb-to-xyz r1 g1 b1 rgbspace)
-	    (destructuring-bind (x2 y2 z2)
-		(apply illum-c-to-foo
-		       (apply #'dufy:mhvc-to-xyz-illum-c
-			      (decode-mhvc u32)))
+	(multiple-value-bind  (r1 g1 b1) (dufy:hex-to-qrgb hex)
+	  (multiple-value-bind (x1 y1 z1) (dufy:qrgb-to-xyz r1 g1 b1 rgbspace)
+	    (multiple-value-bind (x2 y2 z2)
+		(multiple-value-call illum-c-to-foo
+		  (multiple-value-call #'dufy:mhvc-to-xyz-illum-c
+		    (decode-mhvc u32)))
 	      (let ((delta (funcall deltae x1 y1 z1 x2 y2 z2
 				    :illuminant (rgbspace-illuminant rgbspace))))
 		(setf (aref mid hex)
@@ -213,12 +213,12 @@
     (dotimes (hex possible-colors remaining-num)
       (let ((u32 (aref mid hex)))
 	(when (interpolatedp u32)
-	  (let ((deltae (apply #'dufy:xyz-deltae
-			       (append (apply illum-c-to-foo
-					      (apply #'dufy:mhvc-to-xyz-illum-c
-						     (decode-mhvc u32)))
-				       (dufy:hex-to-xyz hex rgbspace)
-				       (list :illuminant (rgbspace-illuminant rgbspace))))))
+	  (let ((deltae (multiple-value-call #'dufy:xyz-deltae
+			  (multiple-value-call illum-c-to-foo
+			    (multiple-value-call #'dufy:mhvc-to-xyz-illum-c
+			      (decode-mhvc u32)))
+			  (dufy:hex-to-xyz hex rgbspace)
+			  :illuminant (rgbspace-illuminant rgbspace))))
 	    (if (> deltae std-deltae)
 	      (setf (aref mid hex)
 		    (set-interpolated (search-hex-to-mhvc-u32 hex u32
@@ -235,23 +235,23 @@
 ;; inverts hex to hvc-u32 with partial brute force method
 (defun search-hex-to-mhvc-u32 (hex init-mhvc-u32 &key (rgbspace +srgb+) (radius 20))
   (let ((illum-c-to-foo (gen-cat-function +illum-c+ (rgbspace-illuminant rgbspace))))
-    (destructuring-bind (r255 g255 b255)
+    (multiple-value-bind (r255 g255 b255)
 	(dufy:hex-to-qrgb hex)
-      (destructuring-bind (init-h1000 init-v1000 init-c500)
+      (multiple-value-bind (init-h1000 init-v1000 init-c500)
 	  (decode-mhvc1000 init-mhvc-u32)
-	(destructuring-bind (true-x true-y true-z)
+	(multiple-value-bind (true-x true-y true-z)
 	    (dufy:qrgb-to-xyz r255 g255 b255 rgbspace)
 	  (let ((cand-h1000 init-h1000)
 		(cand-v1000 init-v1000)
 		(cand-c500 init-c500)
-		(deltae (apply #'dufy:xyz-deltae
-			       (append (apply illum-c-to-foo
-					      (dufy:mhvc-to-xyz-illum-c
-					       (* init-h1000 0.04d0)
-					       (* init-v1000 0.01d0)
-					       (* init-c500 0.1d0)))
-				       (list true-x true-y true-z)
-				       (list :illuminant (rgbspace-illuminant rgbspace))))))
+		(deltae (multiple-value-call #'dufy:xyz-deltae
+			  (multiple-value-call illum-c-to-foo
+			    (dufy:mhvc-to-xyz-illum-c
+			     (* init-h1000 0.04d0)
+			     (* init-v1000 0.01d0)
+			     (* init-c500 0.1d0)))
+			  true-x true-y true-z
+			  :illuminant (rgbspace-illuminant rgbspace))))
 	    (loop
 	       for h1000 from (- init-h1000 radius) to (+ init-h1000 radius)
 	       for hue = (* (mod h1000 1000) 0.04d0)
@@ -265,9 +265,9 @@
 			 for c500 from (max (- init-c500 radius) 0) to (min (+ init-c500 radius) maxc500)
 			 for chroma = (* c500 0.1d0)
 			 do
-			   (destructuring-bind (x y z)
-			       (apply illum-c-to-foo
-				      (dufy::mhvc-to-xyz-illum-c hue value chroma))
+			   (multiple-value-bind (x y z)
+			       (multiple-value-call illum-c-to-foo
+				 (dufy::mhvc-to-xyz-illum-c hue value chroma))
 			     (let ((new-deltae (dufy:xyz-deltae x y z
 								true-x true-y true-z
 								:illuminant (rgbspace-illuminant rgbspace))))
@@ -278,9 +278,9 @@
 				       cand-c500 c500
 				       deltae new-deltae)))))))
 	    (values (encode-mhvc1000 cand-h1000
-					    cand-v1000
-					    cand-c500
-					    (if (interpolatedp init-mhvc-u32) 1 0))
+				     cand-v1000
+				     cand-c500
+				     (if (interpolatedp init-mhvc-u32) 1 0))
 		    deltae)))))))
 				 
   
@@ -302,23 +302,22 @@
 ;; fills MID with invert-lchab-to-mhvc and returns the number of remaining nodes.
 (defun fill-mid-with-inverter (mid &key (rgbspace +srgb+) (keep-flag t) (threshold 1d-3))
   (let ((illum-foo-to-c (gen-cat-function (rgbspace-illuminant rgbspace) +illum-c+))
-	(xyz-to-lchab-illum-c (rcurry #'dufy:xyz-to-lchab +illum-c+))
-	(encode-mhvc-with-flag (rcurry #'encode-mhvc (if keep-flag 1 0)))
 	(max-iteration 500)
 	(num-failure 0))
     (dotimes (hex possible-colors)
       (let ((u32 (aref mid hex)))
 	(when (interpolatedp u32)
-	  (destructuring-bind (lstar cstarab hab)
-	      (apply xyz-to-lchab-illum-c
-		     (apply illum-foo-to-c 
-			    (dufy:hex-to-xyz hex rgbspace)))
-	    (destructuring-bind (init-h disused init-c)
+	  (multiple-value-bind (lstar cstarab hab)
+	      (multiple-value-call #'xyz-to-lchab
+		(multiple-value-call illum-foo-to-c 
+		  (dufy:hex-to-xyz hex rgbspace))
+		+illum-c+)
+	    (multiple-value-bind (init-h disused init-c)
 		(if (= u32 +maxu32+)
 		    (dufy::rough-lchab-to-mhvc lstar cstarab hab)
 		    (decode-mhvc u32))
 	      (declare (ignore disused))
-	      (multiple-value-bind (hvc iteration)
+	      (multiple-value-bind (h v c iteration)
 		  (dufy::invert-mhvc-to-lchab-with-init lstar cstarab hab
 							init-h init-c
 							:max-iteration max-iteration
@@ -328,7 +327,7 @@
 		    ;;(format t "failed at hex #x~X, LCHab=(~A, ~A, ~A)~%" hex lstar cstarab hab)
 		    (incf num-failure)
 		    (setf (aref mid hex)
-			  (apply encode-mhvc-with-flag hvc)))))))))
+			  (encode-mhvc h v c (if keep-flag 1 0))))))))))
     num-failure))
 
 (defun interpolate-once (munsell-inversion-data &key (rgbspace +srgb+) (xyz-deltae #'dufy:xyz-deltae))
@@ -338,8 +337,8 @@
     (dotimes (hex possible-colors not-interpolated)
       (let ((u32 (aref source-mid hex)))
 	(when (= u32 +maxu32+)
-	  (destructuring-bind (r g b) (dufy:hex-to-qrgb hex)
-	    (destructuring-bind (x y z) (dufy:qrgb-to-xyz r g b rgbspace)
+	  (multiple-value-bind (r g b) (dufy:hex-to-qrgb hex)
+	    (multiple-value-bind (x y z) (dufy:qrgb-to-xyz r g b rgbspace)
 	      (let ((neighbors
 		     (list (list r g (rgb1+ b))
 			   (list r g (rgb1- b))
@@ -355,10 +354,10 @@
 				    (n-u32 (aref source-mid n-hex)))
 			       (if (= n-u32 +maxu32+)
 				   most-positive-double-float
-				   (destructuring-bind (n-x n-y n-z)
-				       (apply illum-c-to-foo
-					      (apply #'dufy::mhvc-to-xyz-illum-c
-						     (decode-mhvc n-u32)))
+				   (multiple-value-bind (n-x n-y n-z)
+				       (multiple-value-call illum-c-to-foo
+					 (multiple-value-call #'dufy::mhvc-to-xyz-illum-c
+					   (decode-mhvc n-u32)))
 				     (funcall xyz-deltae x y z
 					      n-x n-y n-z
 					      :illuminant (rgbspace-illuminant rgbspace))))))
@@ -387,13 +386,13 @@
 (defparameter d65-to-c (gen-cat-function +illum-d65+ +illum-c+))
 (defun set-atsm-value (munsell-inversion-data)
   (dotimes (hex possible-colors)
-    (destructuring-bind (h1000 disused c500)
+    (multiple-value-bind (h1000 disused c500)
 	(decode-mhvc1000 (aref munsell-inversion-data hex))
       (declare (ignore disused))
       (let* ((hue40 (clamp (/ h1000 25d0) 0 40))
-	     (new-value (y-to-munsell-value (second (apply d65-to-c
-							   (apply #'qrgb-to-xyz
-								  (hex-to-qrgb hex))))))
+	     (new-value (y-to-munsell-value (second (multiple-value-call d65-to-c
+						      (multiple-value-call #'qrgb-to-xyz
+							(hex-to-qrgb hex))))))
 	     (chroma (* c500 0.1d0))
 	     (v1000-new (round (* new-value 100)))
 	     (c500-new (round (* (min (max-chroma hue40 new-value) chroma) 10))))
@@ -435,20 +434,24 @@
   (let ((u32 (aref munsell-inversion-data (dufy:qrgb-to-hex r g b))))
     (if (= u32 +maxu32+)
 	nil
-	(apply #'dufy:mhvc-to-qrgb (decode-mhvc u32)))))
+	(multiple-value-call #'dufy:mhvc-to-qrgb (decode-mhvc u32)))))
 
 (defun check-all-data (munsell-inversion-data)
   (dotimes (x possible-colors)
-    (let* ((srgb (dufy:hex-to-qrgb x))
-	   (srgb2 (apply #'check-data-from-srgb (append (list munsell-inversion-data) srgb))))
+    (let* ((srgb (multiple-value-list (dufy:hex-to-qrgb x)))
+	   (srgb2 (multiple-value-list (apply #'check-data-from-srgb (append (list munsell-inversion-data) srgb)))))
       (unless (null srgb2)
 	(when (not (equal srgb srgb2))
 	  (format t "inacurrate value at position: ~a" x))))))
 	  
 
 ;; QRGB to munsell HVC
-(defun qrgb-to-mhvc (r g b munsell-inversion-data)
-  (decode-mhvc (aref munsell-inversion-data (dufy:qrgb-to-hex r g b))))
+(defun qrgb-to-mhvc (qr qg qb munsell-inversion-data)
+  (decode-mhvc (aref munsell-inversion-data (dufy:qrgb-to-hex qr qg qb))))
+
+(defun qrgb-to-munsell (qr qg qb munsell-inversion-data)
+  (multiple-value-call #'dufy:mhvc-to-munsell
+    (qrgb-to-mhvc qr qg qb munsell-inversion-data)))
 
 (defun hex-to-mhvc (hex munsell-inversion-data)
   (decode-mhvc (aref munsell-inversion-data hex)))
@@ -545,31 +548,35 @@
 ;; examines the total error of interpolated data in MID and
 ;; returns maximum delta-E.
 (defun examine-interpolation-error (munsell-inversion-data &key (start 0) (end possible-colors) (rgbspace +srgb+) (deltae #'dufy:xyz-deltae) (silent nil) (all-data nil))
+  (declare (optimize (speed 3) (safety 1)))
+  (check-type munsell-inversion-data (simple-array (unsigned-byte 32) (*)))
+  (check-type deltae function)
   (let ((illum-c-to-foo (gen-cat-function +illum-c+ (rgbspace-illuminant rgbspace)))
-	(maximum 0)
+	(maximum 0d0)
 	(worst-hex nil)
-	(sum 0)
+	(sum 0d0)
 	(nodes 0))
     (loop for hex from start below end do
       (let ((u32 (aref munsell-inversion-data hex)))
 	(when (or all-data
 		  (interpolatedp u32))
-	  (destructuring-bind  (r1 g1 b1) (dufy:hex-to-qrgb hex)
-	    (destructuring-bind (x1 y1 z1) (dufy:qrgb-to-xyz r1 g1 b1 rgbspace)
-	      (destructuring-bind (x2 y2 z2)
-		  (apply illum-c-to-foo
-			 (apply #'dufy:mhvc-to-xyz-illum-c
-				(decode-mhvc u32)))
-		(let ((delta (funcall deltae x1 y1 z1 x2 y2 z2
-				      :illuminant (rgbspace-illuminant rgbspace))))
-		  (setf sum (+ sum delta))
-		  (when (> delta maximum)
-		    (setf maximum delta)
-		    (setf worst-hex hex))
-		  (incf nodes))))))))
+	  (let ((delta (multiple-value-call deltae
+			 (multiple-value-call #'dufy:qrgb-to-xyz
+			   (dufy:hex-to-qrgb hex)
+			   rgbspace)
+			 (multiple-value-call illum-c-to-foo
+			   (multiple-value-call #'dufy:mhvc-to-xyz-illum-c
+			     (decode-mhvc u32)))
+			 :illuminant (rgbspace-illuminant rgbspace))))
+	    (declare (double-float delta maximum))
+	    (setf sum (+ sum delta))
+	    (when (> delta maximum)
+	      (setf maximum delta)
+	      (setf worst-hex hex))
+	    (incf nodes)))))
     (unless silent
       (format t "Number of Examined Nodes = ~A (~,3F%)~%" nodes (* 100d0 (/ nodes (- end start))))
-      (format t "Mean Color Difference: ~a~%" (/ sum nodes))
+      (format t "Mean Color Difference: ~a~%" (/ sum (max nodes 1)))
       (format t "Maximum Color Difference: ~a at hex #x~x~%" maximum worst-hex))
     maximum))
 
@@ -600,7 +607,6 @@
 ;; count the nodes in MID which are too far from true colors.
 (defun count-bad-nodes (munsell-inversion-data std-deltae &key (rgbspace +srgb+) (deltae #'dufy:qrgb-deltae) (all-data nil))
   (let ((illum-c-to-foo (gen-cat-function +illum-c+ (rgbspace-illuminant rgbspace)))
-	(tmp-xyz-to-qrgb (rcurry #'dufy:xyz-to-qrgb :rgbspace rgbspace))
 	(num-nodes 0))
     (loop for hex from 0 below possible-colors do
       (let ((u32 (aref munsell-inversion-data hex)))
@@ -608,10 +614,11 @@
 		  (interpolatedp u32))
 	  (destructuring-bind  (r1 g1 b1) (dufy:hex-to-qrgb hex)
 	    (destructuring-bind (r2 g2 b2)
-		(apply tmp-xyz-to-qrgb
-		       (apply illum-c-to-foo
-			      (apply #'dufy:mhvc-to-xyz-illum-c
-				     (decode-mhvc u32))))
+		(multiple-value-call #'dufy:xyz-to-qrgb
+		  (multiple-value-call illum-c-to-foo
+		    (multiple-value-call #'dufy:mhvc-to-xyz-illum-c
+		      (decode-mhvc u32)))
+		  :rgbspace rgbspace)
 	      (let ((delta (funcall deltae r1 g1 b1 r2 g2 b2 :rgbspace rgbspace)))
 		(when (> delta std-deltae)
 		  (incf num-nodes))))))))
@@ -619,10 +626,10 @@
 
 
 (defun check-error-of-hex (hex mid &optional (deltae #'dufy:qrgb-deltae))
-  (let* ((rgb1 (dufy:hex-to-qrgb hex))
-	 (rgb2 (apply #'dufy:mhvc-to-qrgb
-		      (apply (rcurry #'qrgb-to-mhvc mid)
-			     rgb1))))
+  (let* ((rgb1 (multiple-value-list (dufy:hex-to-qrgb hex)))
+	 (rgb2 (multiple-value-call #'dufy:mhvc-to-qrgb
+		 (apply (rcurry #'qrgb-to-mhvc mid)
+			rgb1))))
     (format t "Munsell HVC: ~A~%" (decode-mhvc (aref mid hex)))
     (format t "in MID:~A~%" rgb1)
     (format t "true: ~A~%" rgb2) 
@@ -637,8 +644,8 @@
       (let ((u32 (aref munsell-inversion-data hex)))
 	(if (or all-data
 		(interpolatedp u32))
-	    (let ((v1 (dufy:y-to-munsell-value (second (dufy:hex-to-xyz hex))))
-		  (v2 (second (decode-mhvc u32))))
+	    (let ((v1 (dufy:y-to-munsell-value (nth-value 1 (dufy:hex-to-xyz hex))))
+		  (v2 (nth-value 1 (decode-mhvc u32))))
 	      (let ((delta (abs (- v1 v2))))
 		(setf sum (+ sum delta))
 		(when (> delta maximum)
@@ -658,10 +665,10 @@
 	(sum 0d0)
 	(most-inferior-idx 0))
   (dotimes (idx possible-colors)
-    (let* ((node1 (apply #'mhvc-to-xyz
-			 (decode-mhvc (aref mid1 idx))))
-	   (node2 (apply #'mhvc-to-xyz
-			 (decode-mhvc (aref mid2 idx))))
+    (let* ((node1 (multiple-value-list (multiple-value-call #'mhvc-to-xyz
+					 (decode-mhvc (aref mid1 idx)))))
+	   (node2 (multiple-value-list (multiple-value-call #'mhvc-to-xyz
+					 (decode-mhvc (aref mid2 idx)))))
 	   (delta (apply #'xyz-deltae
 			 (append node1 node2))))
       (setf sum (+ sum delta))

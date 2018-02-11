@@ -34,7 +34,7 @@ digraph G {
    ];
    node [shape = "box", fontname = "helvetica"]
    munsell [ label = "Munsell Color" ]
-   lchab [ label = "LCH(ab)\n illuminant C" ]
+   lchab [ label = "LCh(ab)\n illuminant C" ]
    xyzc [label = "XYZ\nilluminant C" ]
    xyzd65a [label = "XYZ\nilluminant D65" ]
    xyzd65b [label = "XYZ\nilluminant D65" ]
@@ -86,15 +86,15 @@ The transformation error is evaluated as described above. The general statistics
 | --- | ---: | ---: | ---: | ---:| ---: |
 | sRGB (D65) | 0 | 0.1992 | 0.9855 | 0.09047 | 0.7190 |
 | sRGB (D50) | 287 | 0.2006 | 1.167 | 0.09395 | 0.6750 |
-| Adobe RGB (D65) | 32158 (0.192%) | 0.2197 | 3.339 | 0.09133 | 2.704 |
-| Adobe RGB (D50) | 22745 (0.136%) | 0.2211 | 3.346 | 0.09456 | 2.598 |
+| Adobe RGB (D65) | 28502 | 0.2188 | 1.346 | 0.09073 | 1.155 |
+| Adobe RGB (D50) | 19199 | 0.2202 | 1.325 | 0.09397 | 1.112 |
 
 
 Note: as is clear from the above diagram, the error here means the color difference not to *true* colors but to the return values of `dufy:mhvc-to-lchab`. For more information about the converter, see https://github.com/privet-kitty/dufy.
 
 
 
-## LCH<sub>ab</sub>-to-Munsell text data
+## LCh<sub>ab</sub>-to-Munsell text data
 - Medium set [C]: [lchab-to-munsell.dat](https://github.com/privet-kitty/munsell-inversion-data/raw/master/dat/lchab-to-munsell.dat)
 - Large set [C]: [lchab-to-munsell-large.dat](https://github.com/privet-kitty/munsell-inversion-data/raw/master/dat/lchab-to-munsell-large.dat)
 - Medium set [D65]: [lchab-to-munsell-d65.dat](https://github.com/privet-kitty/munsell-inversion-data/raw/master/dat/lchab-to-munsell-d65.dat)
@@ -103,7 +103,7 @@ Note: as is clear from the above diagram, the error here means the color differe
 - Large set [D50]: [lchab-to-munsell-d50-large.dat](https://github.com/privet-kitty/munsell-inversion-data/raw/master/dat/lchab-to-munsell-d50-large.dat)
 
 ### Structure
-These files are space-separated data of LCH<sub>ab</sub> and Munsell notations:
+These files are space-separated data of LCh<sub>ab</sub> and Munsell notations:
 
        L*      C*ab       hab         H         V         C      H360
         2        10         0   6.6121R   0.19144   1.49703   23.8035

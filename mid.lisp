@@ -149,6 +149,7 @@
       (interpolate-mid mid
 		       :rgbspace rgbspace
 		       :xyz-deltae #'xyz-deltae))
+    (format t "Now filling the remaining data with an inverter...~%")
     (fill-mid-with-inverter mid
 			    :rgbspace rgbspace
 			    :keep-flag nil
@@ -165,7 +166,7 @@
     mid))
 
 
-;; set a flag on every node which means a larger error than STD-DELTAE.
+;; set a flag on every node, which means a larger error than STD-DELTAE.
 (defun set-flag-on-mid (mid std-deltae &key (rgbspace +srgb+) (deltae #'dufy:xyz-deltae))
   (let ((illum-c-to-foo (gen-cat-function +illum-c+ (rgbspace-illuminant rgbspace))))
     (dotimes (hex possible-colors)

@@ -62,6 +62,6 @@
 
 
 ;; (do-task "mid-srgb-d65" dufy:+srgb+)
-(do-task "mid-srgb-d50" +srgbd50+)
+;; (do-task "mid-srgb-d50" +srgbd50+)
 ;; (do-task "mid-adobergb-d65" dufy:+adobe+)
-;; (do-task "mid-adobergb-d50" +adobed50+)))
+(do-task "mid-adobergb-d50" +adobed50+)

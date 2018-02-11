@@ -1,6 +1,5 @@
 mid-adobergb-d50.dat filter=lfs diff=lfs merge=lfs -text
 mid-adobergb-d65.dat filter=lfs diff=lfs merge=lfs -text
-mid-srgb-d65.dat filter=lfs diff=lfs merge=lfs -text
 lchab-to-munsell.dat filter=lfs diff=lfs merge=lfs -text
 lchab-to-munsell-d50.dat filter=lfs diff=lfs merge=lfs -text
 lchab-to-munsell-d50-large.dat filter=lfs diff=lfs merge=lfs -text
@@ -8,3 +7,4 @@ lchab-to-munsell-d65.dat filter=lfs diff=lfs merge=lfs -text
 lchab-to-munsell-d65-large.dat filter=lfs diff=lfs merge=lfs -text
 lchab-to-munsell-large.dat filter=lfs diff=lfs merge=lfs -text
 mid-srgb-d50.dat filter=lfs diff=lfs merge=lfs -text
+mid-srgb-d65.dat filter=lfs diff=lfs merge=lfs -text

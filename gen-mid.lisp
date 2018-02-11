@@ -8,9 +8,9 @@
 
 (in-package :cl-user)
 
-(require :dufy)
-(require :mid)
+(asdf:load-system :mid)
 
+(defparameter version "")
 (defparameter current-path *load-pathname*)
 (defparameter dat-dir-name "dat/")
 (defparameter dat-dir-path (merge-pathnames dat-dir-name current-path))
@@ -29,22 +29,39 @@
 	(cons "mid-adobergb-d50" +adobed50+)))
 
 (defun do-task (basename rgbspace)
-  (let* ((filename (concatenate 'string basename ".dat"))
+  (let* ((filename (format nil "~A~A~A~A"
+			   basename
+			   (if (string= version "") "" "-")
+			   version
+			   ".dat"))
 	 (path (merge-pathnames filename dat-dir-path)))
     (format t "Now generating ~A...~%" filename)
-    (mid:save-munsell-inversion-data
-     (mid::make-munsell-inversion-data rgbspace t)
-     path)))
+    (let ((mid (time (mid::make-munsell-inversion-data rgbspace t))))
+      (mid:save-munsell-inversion-data mid path)
+      (multiple-value-bind (mean-ab maximum-ab)
+	  (mid:examine-interpolation-error mid
+					   :silent t
+					   :rgbspace rgbspace
+					   :deltae #'dufy:xyz-deltae
+					   :all-data t)
+	(multiple-value-bind (mean-00 maximum-00)
+	    (mid:examine-interpolation-error mid
+					     :silent t
+					     :rgbspace rgbspace
+					     :deltae #'dufy:xyz-deltae00
+					     :all-data t)
+	  (format t "| ~A | ~A | ~A | ~A | ~A |~%"
+		  (mid:count-interpolated mid)
+		  mean-ab maximum-ab
+		  mean-00 maximum-00))))))
   
 ;; (dolist (task task-lst)
 ;;   (do-task (car task) (cdr task))
 ;;   ))
 
-;; (defparameter mid (mid:load-munsell-inversion-data (merge-pathnames "mid-srgb-d65.dat" current-path)))
-
 
 
 ;; (do-task "mid-srgb-d65" dufy:+srgb+)
-;; (do-task "mid-srgb-d50" +srgbd50+)
+(do-task "mid-srgb-d50" +srgbd50+)
 ;; (do-task "mid-adobergb-d65" dufy:+adobe+)
 ;; (do-task "mid-adobergb-d50" +adobed50+)))

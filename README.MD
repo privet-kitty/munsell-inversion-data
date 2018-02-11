@@ -84,8 +84,8 @@ The transformation error is evaluated as described above. The general statistics
 
 | RGB space | Num. of nodes s.t. &Delta; E<sup>&lowast;</sup><sub>ab</sub> &ge; 1 |Mean &Delta; E<sup>&lowast;</sup><sub>ab</sub> | Max. &Delta; E<sup>&lowast;</sup><sub>ab</sub> |Mean &Delta; E<sup>&lowast;</sup><sub>00</sub> | Max. &Delta; E<sup>&lowast;</sup><sub>00</sub> |
 | --- | ---: | ---: | ---: | ---:| ---: |
-| sRGB (D65) | 957 (0.006%)| 0.1993 | 3.009 | 0.09052 | 2.359 |
-| sRGB (D50) | 1252 (0.007%) | 0.2007 | 3.035 | 0.09400 | 2.253 |
+| sRGB (D65) | 0 | 0.1992 | 0.9855 | 0.09047 | 0.7190 |
+| sRGB (D50) | 287 | 0.2006 | 1.167 | 0.09395 | 0.6750 |
 | Adobe RGB (D65) | 32158 (0.192%) | 0.2197 | 3.339 | 0.09133 | 2.704 |
 | Adobe RGB (D50) | 22745 (0.136%) | 0.2211 | 3.346 | 0.09456 | 2.598 |
 

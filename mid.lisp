@@ -126,20 +126,21 @@
 		      (mhvc-to-xyz-illum-c hue value chroma))
 		  (multiple-value-bind (qr qg qb)
 		      (dufy:xyz-to-qrgb x y z :rgbspace rgbspace)
-		    (unless (dufy:qrgb-out-of-gamut-p qr qg qb)
-		      (let ((hex (dufy:qrgb-to-hex qr qg qb rgbspace)))
-			(let ((old-deltae (aref deltae-arr hex))
-			      (new-deltae (multiple-value-call #'dufy:xyz-deltae
-					    x y z
-					    (dufy:qrgb-to-xyz qr qg qb)
-					    :illuminant (rgbspace-illuminant rgbspace))))
-			  (declare (double-float old-deltae new-deltae))
-			  (when (< new-deltae old-deltae)
-			    ;; rotate if the new color is nearer to the true color than the old one.
-			    (setf (aref mid hex)
-				  (encode-mhvc1000 h1000 v1000 c500))
-			    (setf (aref deltae-arr hex)
-				  new-deltae)))))))))))))
+		    (if (dufy:qrgb-out-of-gamut-p qr qg qb)
+			(return)
+			(let ((hex (dufy:qrgb-to-hex qr qg qb rgbspace)))
+			  (let ((old-deltae (aref deltae-arr hex))
+				(new-deltae (multiple-value-call #'dufy:xyz-deltae
+					      x y z
+					      (dufy:qrgb-to-xyz qr qg qb rgbspace)
+					      :illuminant (rgbspace-illuminant rgbspace))))
+			    (declare (double-float old-deltae new-deltae))
+			    (when (< new-deltae old-deltae)
+			      ;; rotate if the new color is nearer to the true color than the old one.
+			      (setf (aref mid hex)
+				    (encode-mhvc1000 h1000 v1000 c500))
+			      (setf (aref deltae-arr hex)
+				    new-deltae)))))))))))))
     (let ((gaps (count-gaps mid)))
       (format t "The first data has been set. The number of gaps is ~A (~A %).~%"
 	      gaps (* 100 (/ gaps (float possible-colors)))))
@@ -150,7 +151,8 @@
 		       :xyz-deltae #'xyz-deltae))
     (fill-mid-with-inverter mid
 			    :rgbspace rgbspace
-			    :keep-flag nil)
+			    :keep-flag nil
+			    :threshold 1d-4)
     (let ((num (count-interpolated mid)))
       (format t "Data has been updated. The number of inaccurate nodes are now ~A (~A %).~%"
 	      num (* 100 (/ num (float possible-colors)))))
@@ -158,8 +160,8 @@
     (fill-mid-brute-force mid 1d0 :rgbspace rgbspace)
     (format t "Settting a flag on the nodes which give large (i.e. delta-Eab >= ~A) errors.~%" 1d0)
     (set-flag-on-mid mid 1d0 :rgbspace rgbspace)
-    (format t "Evaluating the errors of the final data...~%")
-    (examine-interpolation-error mid :rgbspace rgbspace :all-data t)
+    ;; (format t "Evaluating the errors of the final data...~%")
+    ;; (examine-interpolation-error mid :rgbspace rgbspace :all-data t)
     mid))
 
 
@@ -168,7 +170,7 @@
   (let ((illum-c-to-foo (gen-cat-function +illum-c+ (rgbspace-illuminant rgbspace))))
     (dotimes (hex possible-colors)
       (let ((u32 (aref mid hex)))
-	(multiple-value-bind  (r1 g1 b1) (dufy:hex-to-qrgb hex)
+	(multiple-value-bind  (r1 g1 b1) (dufy:hex-to-qrgb hex rgbspace)
 	  (multiple-value-bind (x1 y1 z1) (dufy:qrgb-to-xyz r1 g1 b1 rgbspace)
 	    (multiple-value-bind (x2 y2 z2)
 		(multiple-value-call illum-c-to-foo
@@ -557,28 +559,29 @@
 	(sum 0d0)
 	(nodes 0))
     (loop for hex from start below end do
-      (let ((u32 (aref munsell-inversion-data hex)))
-	(when (or all-data
-		  (interpolatedp u32))
-	  (let ((delta (multiple-value-call deltae
-			 (multiple-value-call #'dufy:qrgb-to-xyz
-			   (dufy:hex-to-qrgb hex)
-			   rgbspace)
-			 (multiple-value-call illum-c-to-foo
-			   (multiple-value-call #'dufy:mhvc-to-xyz-illum-c
-			     (decode-mhvc u32)))
-			 :illuminant (rgbspace-illuminant rgbspace))))
-	    (declare (double-float delta maximum))
-	    (setf sum (+ sum delta))
-	    (when (> delta maximum)
-	      (setf maximum delta)
-	      (setf worst-hex hex))
-	    (incf nodes)))))
-    (unless silent
-      (format t "Number of Examined Nodes = ~A (~,3F%)~%" nodes (* 100d0 (/ nodes (- end start))))
-      (format t "Mean Color Difference: ~a~%" (/ sum (max nodes 1)))
-      (format t "Maximum Color Difference: ~a at hex #x~x~%" maximum worst-hex))
-    maximum))
+	 (let ((u32 (aref munsell-inversion-data hex)))
+	   (when (or all-data
+		     (interpolatedp u32))
+	     (let ((delta (multiple-value-call deltae
+			    (multiple-value-call #'dufy:qrgb-to-xyz
+			      (dufy:hex-to-qrgb hex)
+			      rgbspace)
+			    (multiple-value-call illum-c-to-foo
+			      (multiple-value-call #'dufy:mhvc-to-xyz-illum-c
+				(decode-mhvc u32)))
+			    :illuminant (rgbspace-illuminant rgbspace))))
+	       (declare (double-float delta maximum))
+	       (setf sum (+ sum delta))
+	       (when (> delta maximum)
+		 (setf maximum delta)
+		 (setf worst-hex hex))
+	       (incf nodes)))))
+    (let ((mean (/ sum (max nodes 1))))
+      (unless silent
+	(format t "Number of Examined Nodes = ~A (~,5F%)~%" nodes (* 100d0 (/ nodes (- end start))))
+	(format t "Mean Color Difference: ~a~%" mean)
+	(format t "Maximum Color Difference: ~a at hex #x~x~%" maximum worst-hex))
+      (values mean maximum))))
 
 ;; (dufy-tools:examine-interpolation-error mid :rgbspace dufy:+srgb+ :deltae #'dufy:qrgb-deltae)
 ;; Number of Interpolated Nodes = 3716978 (22.155%)

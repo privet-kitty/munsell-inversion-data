@@ -8,6 +8,6 @@
   :author "privet-kitty"
   :license "MIT"
   :serial t
-  :depends-on (:dufy :alexandria :fast-io)
+  :depends-on (:dufy :alexandria :fast-io :lparallel)
   :components ((:file "mid"))
 )

@@ -1,12 +1,12 @@
 (defpackage :mid
-  (:use :common-lisp :dufy :alexandria)
+  (:use :common-lisp :dufy :dufy-munsell :lparallel :alexandria)
   (:export :make-munsell-inversion-data
 	   :interpolate-mid
 	   :load-munsell-inversion-data
 	   :save-munsell-inversion-data
 	   :qrgb-to-mhvc
 	   :qrgb-to-munsell
-	   :int-to-mhvc
+	   :rgbpack-to-mhvc
 	   :build-mid
 	   :examine-interpolation-error
 	   :examine-luminance-error
@@ -20,10 +20,11 @@
 	   :fill-mid-with-inverter
 	   :count-gaps
 	   :count-interpolated
-	   :count-bad-nodes
-))
+	   :count-bad-nodes))
 
 (in-package :mid)
+
+(setf *kernel* (make-kernel 3))
 
 ;;
 ;; Here we generate inversion data from 24-bit RGB to Munsell.
@@ -32,11 +33,11 @@
 (defconstant possible-colors 16777216) ;256*256*256
 
 ;; Munsell inversion data (hereinafter called MID) is a 
-;; 16777216 * 32 bit binary data with big-endian: 
+;; 16777216 * 32 bit binary data in big endian format: 
 ;;  0  0  0000000000  0000000000  0000000000
 ;; [A][ ][    B     ][    C     ][    D     ]
 ;; A: flag of large interpolation error:
-;; let f the function from Munsell to RGB in the library Dufy;
+;; let f the function from Munsell to RGB in the library dufy;
 ;; if and only if the flag of a node MID[hex] is 1, then
 ;; delta-Eab(hex, f(MID[hex])) >= 1.0.
 ;; B: quantized hue by 0.1; {0R (= 10RP), 0.1R, 0.2R, ..., 10RP} -> Z/{0, 1, ..., 1000};
@@ -53,9 +54,6 @@
      c500))
 
 (defun encode-mhvc (hue40 value chroma &optional (flag-interpolated 0))
-  ;; (declare (optimize (speed 3) (safety 0))
-  ;; 	   ((integer 0 1000) h1000 v1000 c500)
-  ;; 	   ((integer 0 1) flag-interpolated))
   (encode-mhvc1000 (round (* hue40 25))
 			  (round (* value 100))
 			  (round (* chroma 10))
@@ -94,14 +92,6 @@
 (defmacro rgb1- (x)
   `(clamp (1- ,x) 0 255))
 
-;; (defparameter munsell-inversion-data nil)
-
-;; (defun initialize-munsell-inversion-data ()
-;;   (setf munsell-inversion-data
-;; 	(make-array possible-colors
-;; 		    :element-type '(unsigned-byte 32)
-;; 		    :initial-element +maxu32+)))
-
 (defun make-dummy-data (&rest args)
   args
   (make-array possible-colors
@@ -133,19 +123,17 @@
 		    (declare (fixnum qr qg qb))
 		    (if (qrgb-out-of-gamut-p qr qg qb)
 			(return)
-			(let ((hex (qrgb-to-int qr qg qb rgbspace)))
+			(let ((hex (qrgb-to-rgbpack qr qg qb :rgbspace rgbspace)))
 			  (let ((old-deltae (aref deltae-arr hex))
-				(new-deltae (multiple-value-call #'xyz-deltae
+				(new-deltae (multiple-value-call #'xyz-deltaeab
 					      x y z
-					      (qrgb-to-xyz qr qg qb rgbspace)
+					      (qrgb-to-xyz qr qg qb :rgbspace rgbspace)
 					      :illuminant (rgbspace-illuminant rgbspace))))
 			    (declare (double-float old-deltae new-deltae))
 			    (when (< new-deltae old-deltae)
 			      ;; rotate if the new color is nearer to the true color than the old one.
-			      (setf (aref mid hex)
-				    (encode-mhvc1000 h1000 v1000 c500))
-			      (setf (aref deltae-arr hex)
-				    new-deltae)))))))))))))
+			      (setf (aref mid hex) (encode-mhvc1000 h1000 v1000 c500)
+                                    (aref deltae-arr hex) new-deltae)))))))))))))
     (let ((gaps (count-gaps mid)))
       (format t "The first data has been set. The number of gaps is ~A (~A %).~%"
 	      gaps (* 100 (/ gaps (float possible-colors)))))
@@ -153,26 +141,24 @@
       (format t "Now interpolating...~%")
       (interpolate-mid mid
 		       :rgbspace rgbspace
-		       :xyz-deltae #'xyz-deltae))
-    (format t "Now filling the remaining data with an inverter...~%")
-    (fill-mid-with-inverter mid
-			    :rgbspace rgbspace
-			    :keep-flag nil
-			    :threshold 1d-4)
-    (let ((num (count-interpolated mid)))
-      (format t "Data has been updated. The number of inaccurate nodes are now ~A (~A %).~%"
-	      num (* 100 (/ num (float possible-colors)))))
-    (format t "Now filling the remaining data with a partial brute force method...~%")
-    (fill-mid-brute-force mid 1d0 :rgbspace rgbspace)
-    (format t "Settting a flag on the nodes which give large (i.e. delta-Eab >= ~A) errors.~%" 1d0)
-    (set-flag-on-mid mid 1d0 :rgbspace rgbspace)
-    ;; (format t "Evaluating the errors of the final data...~%")
-    ;; (examine-interpolation-error mid :rgbspace rgbspace :all-data t)
+		       :xyz-deltae #'xyz-deltaeab)
+      (format t "Now filling the remaining data with an inverter...~%")
+      (fill-mid-with-inverter mid
+                              :rgbspace rgbspace
+                              :keep-flag nil
+                              :threshold 1d-4)
+      (let ((num (count-interpolated mid)))
+        (format t "Data has been updated. The number of inaccurate nodes are now ~A (~A %).~%"
+                num (* 100 (/ num (float possible-colors)))))
+      (format t "Now filling the remaining data with a partial brute force method...~%")
+      (fill-mid-brute-force mid 1d0 :rgbspace rgbspace)
+      (format t "Settting a flag on the nodes which give large (i.e. delta-Eab >= ~A) errors.~%" 1d0)
+      (set-flag-on-mid mid 1d0 :rgbspace rgbspace))
     mid))
 
 
 ;; set a flag on every node, which means a larger error than STD-DELTAE.
-(defun set-flag-on-mid (mid std-deltae &key (rgbspace +srgb+) (deltae #'xyz-deltae))
+(defun set-flag-on-mid (mid std-deltae &key (rgbspace +srgb+) (deltae #'xyz-deltaeab))
   (let ((illum-c-to-foo (gen-cat-function +illum-c+ (rgbspace-illuminant rgbspace))))
     (declare (optimize (speed 3) (safety 1))
 	     ((simple-array (unsigned-byte 32)) mid)
@@ -182,7 +168,7 @@
       (let ((u32 (aref mid hex)))
 	(declare ((unsigned-byte 32) u32))
 	(let ((delta (multiple-value-call deltae
-		       (int-to-xyz hex rgbspace)
+		       (rgbpack-to-xyz hex :rgbspace rgbspace)
 		       (multiple-value-call illum-c-to-foo
 			 (multiple-value-call #'mhvc-to-xyz-illum-c
 			   (decode-mhvc u32)))
@@ -205,7 +191,7 @@
 		    (let ((new-error (examine-interpolation-error mid :rgbspace rgbspace :silent t))
 			  (new-remaining-num (count-interpolated mid)))
 		      (format t "Loop ~A: Maximum Error (Delta-Eab) = ~A, Remaining nodes=~A~%" i new-error new-remaining-num)
-		      (if (and (nearly<= 0.001d0 max-error new-error)
+		      (if (and (dufy-internal:nearly<= 0.001d0 max-error new-error)
 			       (<= remaining-num new-remaining-num))
 			  (return)
 			  (setf max-error new-error
@@ -222,15 +208,15 @@
     (dotimes (hex possible-colors remaining-num)
       (let ((u32 (aref mid hex)))
 	(when (interpolatedp u32)
-	  (let ((deltae (multiple-value-call #'xyz-deltae
+	  (let ((deltae (multiple-value-call #'xyz-deltaeab
 			  (multiple-value-call illum-c-to-foo
 			    (multiple-value-call #'mhvc-to-xyz-illum-c
 			      (decode-mhvc u32)))
-			  (int-to-xyz hex rgbspace)
+			  (rgbpack-to-xyz hex :rgbspace rgbspace)
 			  :illuminant (rgbspace-illuminant rgbspace))))
 	    (if (> deltae std-deltae)
 	      (setf (aref mid hex)
-		    (set-interpolated (search-int-to-mhvc-u32 hex u32
+		    (set-interpolated (search-rgbpack-to-mhvc-u32 hex u32
 							     :rgbspace rgbspace
 							     :radius radius))
 		    remaining-num (1+ remaining-num))
@@ -240,20 +226,19 @@
 				 #'set-uninterpolated)
 			     u32)))))))))
 
-
-;; inverts hex to hvc-u32 with partial brute force method
-(defun search-int-to-mhvc-u32 (hex init-mhvc-u32 &key (rgbspace +srgb+) (radius 20))
+(defun search-rgbpack-to-mhvc-u32 (hex init-mhvc-u32 &key (rgbspace +srgb+) (radius 20))
+  "Inverts HEX to HVC (u32) by partial brute force method."
   (let ((illum-c-to-foo (gen-cat-function +illum-c+ (rgbspace-illuminant rgbspace))))
     (multiple-value-bind (r255 g255 b255)
-	(int-to-qrgb hex)
+	(rgbpack-to-qrgb hex)
       (multiple-value-bind (init-h1000 init-v1000 init-c500)
 	  (decode-mhvc1000 init-mhvc-u32)
 	(multiple-value-bind (true-x true-y true-z)
-	    (qrgb-to-xyz r255 g255 b255 rgbspace)
+	    (qrgb-to-xyz r255 g255 b255 :rgbspace rgbspace)
 	  (let ((cand-h1000 init-h1000)
 		(cand-v1000 init-v1000)
 		(cand-c500 init-c500)
-		(deltae (multiple-value-call #'xyz-deltae
+		(deltae (multiple-value-call #'xyz-deltaeab
 			  (multiple-value-call illum-c-to-foo
 			    (mhvc-to-xyz-illum-c
 			     (* init-h1000 0.04d0)
@@ -262,24 +247,21 @@
 			  true-x true-y true-z
 			  :illuminant (rgbspace-illuminant rgbspace))))
 	    (loop
-	       for h1000 from (- init-h1000 radius) to (+ init-h1000 radius)
-	       for hue = (* (mod h1000 1000) 0.04d0)
-	       do
-		 (loop
-		    for v1000 from (max (- init-v1000 radius) 0) to (min (+ init-v1000 radius) 1000)
-		    for value = (* v1000 0.01d0)
-		    for maxc500 = (* (max-chroma-in-mrd hue value) 10)
-		    do
-		      (loop
-			 for c500 from (max (- init-c500 radius) 0) to (min (+ init-c500 radius) maxc500)
-			 for chroma = (* c500 0.1d0)
-			 do
-			   (multiple-value-bind (x y z)
+              for h1000 from (- init-h1000 radius) to (+ init-h1000 radius)
+              for hue = (* (mod h1000 1000) 0.04d0)
+              do (loop
+                   for v1000 from (max (- init-v1000 radius) 0) to (min (+ init-v1000 radius) 1000)
+                   for value = (* v1000 0.01d0)
+                   for maxc500 = (* (max-chroma-in-mrd hue value) 10)
+                   do (loop
+                        for c500 from (max (- init-c500 radius) 0) to (min (+ init-c500 radius) maxc500)
+                        for chroma = (* c500 0.1d0)
+                        do (multiple-value-bind (x y z)
 			       (multiple-value-call illum-c-to-foo
 				 (mhvc-to-xyz-illum-c hue value chroma))
-			     (let ((new-deltae (xyz-deltae x y z
-								true-x true-y true-z
-								:illuminant (rgbspace-illuminant rgbspace))))
+			     (let ((new-deltae (xyz-deltaeab x y z
+                                                             true-x true-y true-z
+                                                             :illuminant (rgbspace-illuminant rgbspace))))
 			       (when (< new-deltae deltae)
 				 ;; rotate if the new color is nearer to the true color than the old one.
 				 (setf cand-h1000 h1000
@@ -293,20 +275,20 @@
 		    deltae)))))))
 				 
   
-(defun find-least-score-rec (testfunc lst l-score l-node)
+(defun %find-least-score (testfunc lst l-score l-node)
   (if (null lst)
       l-node
       (let ((score (funcall testfunc (car lst))))
 	(if (< score l-score)
-	    (find-least-score-rec testfunc (cdr lst) score (car lst))
-	    (find-least-score-rec testfunc (cdr lst) l-score l-node)))))
+	    (%find-least-score testfunc (cdr lst) score (car lst))
+	    (%find-least-score testfunc (cdr lst) l-score l-node)))))
 
-;; returns a node for which the TESTFUNC gives the minimum value.
 (defun find-least-score (testfunc lst)
-  (find-least-score-rec testfunc
-			lst
-			(funcall testfunc (car lst))
-			(car lst)))
+  "Returns a node for which the TESTFUNC gives the minimum value."
+  (%find-least-score testfunc
+                     lst
+                     (funcall testfunc (car lst))
+                     (car lst)))
 
 ;; fills MID with invert-lchab-to-mhvc and returns the number of remaining nodes.
 (defun fill-mid-with-inverter (mid &key (rgbspace +srgb+) (keep-flag t) (threshold 1d-3))
@@ -321,27 +303,27 @@
 	  (multiple-value-bind (lstar cstarab hab)
 	      (multiple-value-call #'xyz-to-lchab
 		(multiple-value-call illum-foo-to-c 
-		  (int-to-xyz hex rgbspace))
-		+illum-c+)
+		  (rgbpack-to-xyz hex :rgbspace rgbspace))
+		:illuminant +illum-c+)
 	    (multiple-value-bind (init-h disused init-c)
 		(if (= u32 +maxu32+)
-		    (dufy::rough-lchab-to-mhvc lstar cstarab hab)
+		    (dufy-munsell::rough-lchab-to-mhvc lstar cstarab hab)
 		    (decode-mhvc u32))
 	      (declare (ignore disused))
-	      (multiple-value-bind (h v c iteration)
-		  (dufy::invert-mhvc-to-lchab lstar cstarab hab
-                                              init-h init-c
-                                              :max-iteration max-iteration
-                                              :threshold threshold)
-		(if (or (= iteration max-iteration)
-			(= iteration -1))
+	      (multiple-value-bind (h v c)
+		  (dufy-munsell::invert-mhvc-to-lchab lstar cstarab hab
+                                                      init-h init-c
+                                                      :max-iteration max-iteration
+                                                      :if-reach-max :negative
+                                                      :threshold threshold)
+		(if (= h least-negative-double-float)
 		    ;;(format t "failed at hex #x~X, LCHab=(~A, ~A, ~A)~%" hex lstar cstarab hab)
 		    (incf num-failure)
 		    (setf (aref mid hex)
 			  (encode-mhvc h v c (if keep-flag 1 0))))))))))
     num-failure))
 
-(defun interpolate-once (mid &key (rgbspace +srgb+) (xyz-deltae #'xyz-deltae))
+(defun interpolate-once (mid &key (rgbspace +srgb+) (xyz-deltae #'xyz-deltaeab))
   (declare (optimize (speed 3) (safety 1))
 	   ((simple-array (unsigned-byte 32)) mid)
 	   (function xyz-deltae))
@@ -351,8 +333,8 @@
     (dotimes (hex possible-colors not-interpolated)
       (let ((u32 (aref source-mid hex)))
 	(when (= u32 +maxu32+)
-	  (multiple-value-bind (r g b) (int-to-qrgb hex)
-	    (multiple-value-bind (x y z) (qrgb-to-xyz r g b rgbspace)
+	  (multiple-value-bind (r g b) (rgbpack-to-qrgb hex)
+	    (multiple-value-bind (x y z) (qrgb-to-xyz r g b :rgbspace rgbspace)
 	      (let ((neighbors
 		     (list (list r g (rgb1+ b))
 			   (list r g (rgb1- b))
@@ -361,10 +343,10 @@
 			   (list (rgb1+ r) g b)
 			   (list (rgb1- r) g b))))
 		(let ((nearest-hex
-		       (apply #'qrgb-to-int
+		       (apply #'qrgb-to-rgbpack
 			(find-least-score
 			 #'(lambda (n-qrgb)
-			     (let* ((n-hex (apply #'qrgb-to-int n-qrgb))
+			     (let* ((n-hex (apply #'qrgb-to-rgbpack n-qrgb))
 				    (n-u32 (aref source-mid n-hex)))
 			       (if (= n-u32 +maxu32+)
 				   most-positive-double-float
@@ -382,7 +364,7 @@
 
 
 
-(defun interpolate-mid (munsell-inversion-data &key (rgbspace +srgb+) (xyz-deltae #'xyz-deltae))
+(defun interpolate-mid (munsell-inversion-data &key (rgbspace +srgb+) (xyz-deltae #'xyz-deltaeab))
   (let ((i 0))
     (loop
        (let ((remaining (interpolate-once munsell-inversion-data
@@ -396,28 +378,28 @@
 
 
 ;; sets value with y-to-munsell-value in MID; Thereby chroma is properly corrected.
-(defparameter d65-to-c (gen-cat-function +illum-d65+ +illum-c+))
+(define-cat-function d65-to-c +illum-d65+ +illum-c+)
 (defun set-atsm-value (munsell-inversion-data)
   (dotimes (hex possible-colors)
     (multiple-value-bind (h1000 disused c500)
 	(decode-mhvc1000 (aref munsell-inversion-data hex))
       (declare (ignore disused))
       (let* ((hue40 (clamp (/ h1000 25d0) 0 40))
-	     (new-value (y-to-munsell-value (second (multiple-value-call d65-to-c
-						      (multiple-value-call #'qrgb-to-xyz
-							(int-to-qrgb hex))))))
+	     (new-value (y-to-munsell-value
+                         (nth-value 1 (multiple-value-call #'d65-to-c
+                                        (rgbpack-to-xyz hex)))))
 	     (chroma (* c500 0.1d0))
 	     (v1000-new (round (* new-value 100)))
 	     (c500-new (round (* (min (max-chroma-in-mrd hue40 new-value) chroma) 10))))
 	(setf (aref munsell-inversion-data hex) (encode-mhvc1000 h1000 v1000-new c500-new))))))
 
 
-;; saves/loads Munsell inversion data to/from a binary file with big endian
 (defun absolute-p (path)
   (eql (car (pathname-directory (parse-namestring path)))
        :absolute))
 
 (defun save-munsell-inversion-data (munsell-inversion-data &optional (filename-str "srgbd65-to-munsell-be.dat"))
+  "saves/loads Munsell inversion data to/from a binary file in big endian format."
   (let ((path (if (absolute-p filename-str)
 		  filename-str
 		  (merge-pathnames (asdf:system-source-directory :dufy) filename-str))))
@@ -444,14 +426,14 @@
 	
 
 (defun check-data-from-srgb (munsell-inversion-data r g b)
-  (let ((u32 (aref munsell-inversion-data (qrgb-to-int r g b))))
+  (let ((u32 (aref munsell-inversion-data (qrgb-to-rgbpack r g b))))
     (if (= u32 +maxu32+)
 	nil
 	(multiple-value-call #'mhvc-to-qrgb (decode-mhvc u32) :clamp nil))))
 
 (defun check-all-data (munsell-inversion-data)
   (dotimes (x possible-colors)
-    (let* ((srgb (multiple-value-list (int-to-qrgb x)))
+    (let* ((srgb (multiple-value-list (rgbpack-to-qrgb x)))
 	   (srgb2 (multiple-value-list (apply #'check-data-from-srgb (append (list munsell-inversion-data) srgb)))))
       (unless (null srgb2)
 	(when (not (equal srgb srgb2))
@@ -460,13 +442,13 @@
 
 ;; QRGB to munsell HVC
 (defun qrgb-to-mhvc (qr qg qb munsell-inversion-data)
-  (decode-mhvc (aref munsell-inversion-data (qrgb-to-int qr qg qb))))
+  (decode-mhvc (aref munsell-inversion-data (qrgb-to-rgbpack qr qg qb))))
 
 (defun qrgb-to-munsell (qr qg qb munsell-inversion-data)
   (multiple-value-call #'mhvc-to-munsell
     (qrgb-to-mhvc qr qg qb munsell-inversion-data)))
 
-(defun int-to-mhvc (hex munsell-inversion-data)
+(defun rgbpack-to-mhvc (hex munsell-inversion-data)
   (decode-mhvc (aref munsell-inversion-data hex)))
 
 ;; one-in-all function
@@ -510,7 +492,7 @@
      (let ((gaps 0))
        (dotimes (r 256)
 	 (dotimes (g 256)
-	   (if (= +maxu32+ (aref munsell-inversion-data (qrgb-to-int r g b)))
+	   (if (= +maxu32+ (aref munsell-inversion-data (qrgb-to-rgbpack r g b)))
 	       (incf gaps))))
        (format t "b = ~a, gap rate = ~a~%" b (/ gaps 65536.0))
        (setf gaps-sum (+ gaps-sum gaps))))
@@ -523,7 +505,7 @@
      (let ((gaps 0))
        (dotimes (r 256)
 	 (dotimes (g 256)
-	   (if (interpolatedp (aref munsell-inversion-data (qrgb-to-int r g b)))
+	   (if (interpolatedp (aref munsell-inversion-data (qrgb-to-rgbpack r g b)))
 	       (incf gaps))))
        (format t "b = ~a, gap rate = ~a~%" b (/ gaps 65536.0))
        (setf gaps-sum (+ gaps-sum gaps))))
@@ -543,7 +525,7 @@
 			     (max-b (min 255 (- brightness-sum r g))))
 			 (loop for b from min-b to max-b do
 			      (incf number-of-colors)
-			      (when (= +maxu32+ (aref munsell-inversion-data (qrgb-to-int r g b)))
+			      (when (= +maxu32+ (aref munsell-inversion-data (qrgb-to-rgbpack r g b)))
 				(incf gaps)
 				(incf gaps-sum)))))))
 	   (format t "brightness = ~a, gap rate = ~a (= ~a / ~a).~%"
@@ -554,37 +536,33 @@
     (format t "total gap rate = ~a~%" (/ gaps-sum (float possible-colors)))))
     
 
-(defun interiorp (hex)
-  (destructuring-bind (r g b) (int-to-qrgb hex)
-    (and (/= r 0) (/= g 0) (/= b 0) (/= r 255) (/= g 255) (/= b 255))))
-
 ;; examines the total error of interpolated data in MID and
 ;; returns maximum delta-E.
-(defun examine-interpolation-error (munsell-inversion-data &key (rgbspace +srgb+) (deltae #'xyz-deltae) (silent nil) (all-data nil))
-  (declare (optimize (speed 3) (safety 1)))
-  (check-type munsell-inversion-data (simple-array (unsigned-byte 32) (*)))
-  (check-type deltae function)
+(defun examine-interpolation-error (munsell-inversion-data &key (rgbspace +srgb+) (deltae #'xyz-deltaeab) (silent nil) (all-data nil))
+  (declare (optimize (speed 3) (safety 1))
+           (type function deltae)
+           (type (simple-array (unsigned-byte 32) (*)) munsell-inversion-data))
   (let ((illum-c-to-foo (gen-cat-function +illum-c+ (rgbspace-illuminant rgbspace)))
 	(maximum 0d0)
 	(worst-hex nil)
 	(sum 0d0)
 	(nodes 0))
-    (loop for hex from 0 below possible-colors do
-	 (let ((u32 (aref munsell-inversion-data hex)))
-	   (when (or all-data
-		     (interpolatedp u32))
-	     (let ((delta (multiple-value-call deltae
-			    (int-to-xyz hex rgbspace)
-			    (multiple-value-call illum-c-to-foo
-			      (multiple-value-call #'mhvc-to-xyz-illum-c
-				(decode-mhvc u32)))
-			    :illuminant (rgbspace-illuminant rgbspace))))
-	       (declare (double-float delta maximum))
-	       (setf sum (+ sum delta))
-	       (when (> delta maximum)
-		 (setf maximum delta)
-		 (setf worst-hex hex))
-	       (incf nodes)))))
+    (pdotimes (hex possible-colors)
+      (let ((u32 (aref munsell-inversion-data hex)))
+        (when (or all-data
+                  (interpolatedp u32))
+          (let ((delta (multiple-value-call deltae
+                         (rgbpack-to-xyz hex :rgbspace rgbspace)
+                         (multiple-value-call illum-c-to-foo
+                           (multiple-value-call #'mhvc-to-xyz-illum-c
+                             (decode-mhvc u32)))
+                         :illuminant (rgbspace-illuminant rgbspace))))
+            (declare (double-float delta maximum))
+            (setf sum (+ sum delta))
+            (when (> delta maximum)
+              (setf maximum delta
+                    worst-hex hex))
+            (incf nodes)))))
     (let ((mean (/ sum (max nodes 1))))
       (unless silent
 	(format t "Number of Examined Nodes = ~A (~,5F%)~%" nodes (* 100d0 (/ nodes possible-colors)))
@@ -592,7 +570,7 @@
 	(format t "Maximum Color Difference: ~a at hex #x~x~%" maximum worst-hex))
       (values mean maximum))))
 
-;; (dufy-tools:examine-interpolation-error mid :rgbspace dufy:+srgb+ :deltae #'dufy:qrgb-deltae)
+;; (dufy-tools:examine-interpolation-error mid :rgbspace dufy:+srgb+ :deltae #'dufy:qrgb-deltaeab)
 ;; Number of Interpolated Nodes = 3716978 (22.155%)
 ;; Mean Color Difference: 0.32306172649351494d0
 ;; Maximum Color Difference: 10.381509801482807d0 at hex #x45F4
@@ -617,15 +595,15 @@
 
 
 ;; count the nodes in MID which are too far from true colors.
-(defun count-bad-nodes (munsell-inversion-data std-deltae &key (rgbspace +srgb+) (deltae #'qrgb-deltae) (all-data nil))
+(defun count-bad-nodes (munsell-inversion-data std-deltae &key (rgbspace +srgb+) (deltae #'qrgb-deltaeab) (all-data nil))
   (let ((illum-c-to-foo (gen-cat-function +illum-c+ (rgbspace-illuminant rgbspace)))
 	(num-nodes 0))
     (loop for hex from 0 below possible-colors do
       (let ((u32 (aref munsell-inversion-data hex)))
 	(when (or all-data
 		  (interpolatedp u32))
-	  (destructuring-bind  (r1 g1 b1) (int-to-qrgb hex)
-	    (destructuring-bind (r2 g2 b2)
+	  (multiple-value-bind  (r1 g1 b1) (rgbpack-to-qrgb hex)
+	    (multiple-value-bind (r2 g2 b2)
 		(multiple-value-call #'xyz-to-qrgb
 		  (multiple-value-call illum-c-to-foo
 		    (multiple-value-call #'mhvc-to-xyz-illum-c
@@ -638,8 +616,8 @@
     num-nodes))
 
 
-(defun check-error-of-hex (hex mid &optional (deltae #'qrgb-deltae))
-  (let* ((rgb1 (multiple-value-list (int-to-qrgb hex)))
+(defun check-error-of-hex (hex mid &optional (deltae #'qrgb-deltaeab))
+  (let* ((rgb1 (multiple-value-list (rgbpack-to-qrgb hex)))
 	 (rgb2 (multiple-value-call #'mhvc-to-qrgb
 		 (apply (rcurry #'qrgb-to-mhvc mid)
 			rgb1)
@@ -658,7 +636,7 @@
       (let ((u32 (aref munsell-inversion-data hex)))
 	(if (or all-data
 		(interpolatedp u32))
-	    (let ((v1 (y-to-munsell-value (nth-value 1 (int-to-xyz hex))))
+	    (let ((v1 (y-to-munsell-value (nth-value 1 (rgbpack-to-xyz hex))))
 		  (v2 (nth-value 1 (decode-mhvc u32))))
 	      (let ((delta (abs (- v1 v2))))
 		(setf sum (+ sum delta))
@@ -683,7 +661,7 @@
 					 (decode-mhvc (aref mid1 idx)))))
 	   (node2 (multiple-value-list (multiple-value-call #'mhvc-to-xyz
 					 (decode-mhvc (aref mid2 idx)))))
-	   (delta (apply #'xyz-deltae
+	   (delta (apply #'xyz-deltaeab
 			 (append node1 node2))))
       (setf sum (+ sum delta))
       (when (> delta maximum-delta)
@@ -699,10 +677,10 @@
     (let ((node (aref mid hex)))
       (when (interpolatedp node)
 	(setf (aref mid hex) +maxu32+)))))
-  
+
 ;; get the maximun radius of the spheres of missing values in the non-interpolated munsell inversion data.
 ;; (defun get-radius-of-blank-sphere (mid depth r g b)
-;;   (if (not (= +maxu32+ (aref mid (dufy:qrgb-to-int r g b))))
+;;   (if (not (= +maxu32+ (aref mid (dufy:qrgb-to-rgbpack r g b))))
 ;;       depth
 ;;       (max (get-radius-of-blank-sphere mid (1+ depth) r g (rgb1+ b))
 ;; 	   (get-radius-of-blank-sphere mid (1+ depth) r g (rgb1- b))
@@ -716,7 +694,7 @@
 ;;     (dotimes (hex possible-colors maximum)
 ;;       (when (= (mod hex 10000) 0)
 ;; 	(format t "~a / ~a hues were processed." hex possible-colors))
-;;       (let ((rad (apply #'get-radius-of-blank-sphere mid 0 (dufy:int-to-qrgb hex))))
+;;       (let ((rad (apply #'get-radius-of-blank-sphere mid 0 (dufy:rgbpack-to-qrgb hex))))
 ;; 	(if (> rad maximum)
 ;; 	    (setf maximum rad))))))
 

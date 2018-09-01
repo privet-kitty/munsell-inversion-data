@@ -43,7 +43,7 @@ digraph G {
    {rank=same; munsell; hex;}
    {rank=same; xyzd65a; xyzd65b;}
 
-   munsell -> lchab  [label = "dufy:mhvc-to-lchab"]
+   munsell -> lchab  [label = "dufy:mhvc-to-lchab-illum-c"]
    hex -> xyzd65b
    lchab -> xyzc
    xyzc -> xyzd65a [label = "Bradford" ]
@@ -90,7 +90,7 @@ The transformation error is evaluated as described above. The general statistics
 | Adobe RGB (D50) | 19199 | 0.2202 | 1.325 | 0.09397 | 1.112 |
 
 
-Note: as is clear from the above diagram, the error here means the color difference not to *true* colors but to the return values of `dufy:mhvc-to-lchab`. For more information about the converter, see https://github.com/privet-kitty/dufy.
+Note: as is clear from the above diagram, the error here means the color difference not to *true* colors but to the return values of `dufy:mhvc-to-lchab-illum-c`. For more information about the converter, see https://github.com/privet-kitty/dufy.
 
 
 
@@ -134,4 +134,4 @@ For each illuminant there are two data sets of different size:
 
 
 ### Information about accuracy
-Each data is accurate (i.e. significant digits = display digits) *as an inversion of* `dufy:mhvc-to-lchab`. Therefore the true errors depend on it. For more information, see https://github.com/privet-kitty/dufy.
+Each data is accurate (i.e. significant digits = display digits) *as an inversion of* `dufy:mhvc-to-lchab-illum-c`. Therefore the true errors depend on it. For more information, see https://github.com/privet-kitty/dufy.
